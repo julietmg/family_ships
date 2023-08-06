@@ -23,6 +23,7 @@ public class AuthenticationController {
     // TODO: Get rid of this endpoint in production
     @GetMapping(path = "/debug")
     public @ResponseBody Map<String, Object> debug(@AuthenticationPrincipal OAuth2User principal) {
+        
         return principal.getAttributes();
     }
 

@@ -30,9 +30,12 @@
     <div class="container authenticated" style="display:none">
         Logged in as: <span id="id"></span>
 
-         <!-- TODO: Add this only when authenticated or something. -->
-        <div id="graph"></div>
-        <script type="module" src="tree.js"></script>
+        <div>
+            <form action="/model/people" method="POST">
+                <input type="text" name="name" placeholder="Enter the person's name">
+                <input type="submit" value="Create">
+            </form>
+        </div>
         
         <div>
             <button onClick="logout()" class="btn btn-primary">Logout</button>
@@ -44,21 +47,6 @@
             $("#id").html(data.id);
             $(".unauthenticated").hide();
             $(".authenticated").show();
-            
-        });
-
-        $.ajaxSetup({
-            beforeSend: function (xhr, settings) {
-                if (settings.type == 'POST' || settings.type == 'PUT'
-                    || settings.type == 'DELETE') {
-                    if (!(/^http:.*/.test(settings.url) || /^https:.*/
-                        .test(settings.url))) {
-                        // Only send the token to relative URLs i.e. locally.
-                        xhr.setRequestHeader("X-XSRF-TOKEN",
-                            Cookies.get('XSRF-TOKEN'));
-                    }
-                }
-            }
         });
 
         var logout = function () {
