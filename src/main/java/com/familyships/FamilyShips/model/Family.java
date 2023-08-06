@@ -2,6 +2,8 @@ package com.familyships.FamilyShips.model;
 
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -16,9 +18,11 @@ public class Family {
     private Integer id = null;
 
     @OneToMany(mappedBy = "family")
+    @JsonManagedReference
     private Set<FamilyParent> parents; 
 
     @OneToMany(mappedBy = "family")
+    @JsonManagedReference
     private Set<FamilyChild> children;
 
     public Integer getId() {

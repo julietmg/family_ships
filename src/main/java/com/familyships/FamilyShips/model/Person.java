@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -19,11 +21,16 @@ public class Person {
     private Integer id;
     private Set<String> names;
 
+
+    // TODO: Do even better serialization.
+    
     // may be >1 if not sure which one
     @OneToMany(mappedBy = "child")
+    @JsonManagedReference
     private Set<FamilyChild> childOfFamily;
 
     @OneToMany(mappedBy = "parent")
+    @JsonManagedReference
     private Set<FamilyParent> parentOfFamily;
 
     public Set<FamilyChild> getChildOfFamily() {
@@ -62,11 +69,13 @@ public class Person {
     }
 
     private Set<Integer> childOfFamiliesIds() {
-        return childOfFamily.stream().map((family_child) -> family_child.getFamily().getId()).collect(Collectors.toSet());
+        return childOfFamily.stream().map((family_child) -> family_child.getFamily().getId())
+                .collect(Collectors.toSet());
     }
 
     private Set<Integer> parentOfFamilyIds() {
-        return parentOfFamily.stream().map((family_parent) -> family_parent.getFamily().getId()).collect(Collectors.toSet());
+        return parentOfFamily.stream().map((family_parent) -> family_parent.getFamily().getId())
+                .collect(Collectors.toSet());
     }
 
     @Override

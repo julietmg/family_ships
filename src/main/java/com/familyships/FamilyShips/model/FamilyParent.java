@@ -1,5 +1,7 @@
 package com.familyships.FamilyShips.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
@@ -14,10 +16,12 @@ public class FamilyParent {
   @ManyToOne
   @MapsId("familyId")
   @JoinColumn(name = "family_id")
+  @JsonBackReference
   private Family family;
 
   @ManyToOne
   @MapsId("parentId")
+  @JsonBackReference
   @JoinColumn(name = "parent_id")
   private Person parent;
 
