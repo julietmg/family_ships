@@ -37,20 +37,20 @@ public class ModelController {
 
     // TODO: Get rid of debug endpoints in the production version
     @GetMapping("/model/debug/people")
-    public List<String> people() {
-        List<String> result = new ArrayList<String>();
+    public List<Person> people() {
+        List<Person> result = new ArrayList<Person>();
         for (Person person : personRepository.findAll()) {
-            result.add(person.toString());
+            result.add(person);
         }
         return result;
     }
 
     // TODO: Get rid of debug endpoints in the production version
     @GetMapping("/model/debug/families")
-    public List<String> families() {
-        List<String> result = new ArrayList<String>();
+    public List<Family> families() {
+        List<Family> result = new ArrayList<Family>();
         for (Family family : familyRepository.findAll()) {
-            result.add(family.toString());
+            result.add(family);
         }
         return result;
     }
