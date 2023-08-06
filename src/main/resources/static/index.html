@@ -31,11 +31,47 @@
         Logged in as: <span id="id"></span>
 
         <div>
-            <form action="/model/people" method="POST">
+            Add person:
+            <form action="/model/new_person" method="POST">
                 <input type="text" name="name" placeholder="Enter the person's name">
-                <input type="submit" value="Create">
+                <input type="submit" value="Add">
             </form>
         </div>
+
+        <div>
+            Delete person:
+            <form action="/model/delete_person" method="POST">
+                <input type="text" name="id" placeholder="Enter the person's id">
+                <input type="submit" value="Delete">
+            </form>
+        </div>
+
+        <div>
+            Add family:
+            <form action="/model/new_family" method="POST">
+                <input type="submit" value="Add">
+            </form>
+        </div>
+
+        <div>
+            Add family child:
+            <form action="/model/new_family_child" method="POST">
+                <input type="text" name="familyId" placeholder="Enter family id">
+                <input type="text" name="childId" placeholder="Enter child id">
+                <input type="submit" value="Add">
+            </form>
+        </div>
+
+
+        <div>
+            Add family parent:
+            <form action="/model/new_family_parent" method="POST">
+                <input type="text" name="familyId" placeholder="Enter family id">
+                <input type="text" name="parentId" placeholder="Enter parent id">
+                <input type="submit" value="Add">
+            </form>
+        </div>
+        
         
         <div>
             <button onClick="logout()" class="btn btn-primary">Logout</button>

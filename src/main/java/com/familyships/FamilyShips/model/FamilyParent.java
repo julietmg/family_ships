@@ -2,9 +2,6 @@ package com.familyships.FamilyShips.model;
 
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
@@ -18,6 +15,16 @@ public class FamilyParent {
   @MapsId("familyId")
   @JoinColumn(name = "family_id")
   private Family family;
+
+  @ManyToOne
+  @MapsId("parentId")
+  @JoinColumn(name = "parent_id")
+  private Person parent;
+
+  // TODO: Represent all of:
+  // * XY chromosome parent
+  // * XX chromosome parent
+  // * adoption
 
   public FamilyParentKey getId() {
     return id;
@@ -43,8 +50,8 @@ public class FamilyParent {
     this.parent = parent;
   }
 
-  @ManyToOne
-  @MapsId("parentId")
-  @JoinColumn(name = "parent_id")
-  private Person parent;
+  @Override
+  public String toString() {
+    return "FamilyParent [id=" + id + ", family=" + family.getId() + ", parent=" + parent + "]";
+  }
 }

@@ -11,6 +11,16 @@ public class FamilyChild {
 
   @EmbeddedId
   private FamilyChildKey id;
+  
+  @ManyToOne
+  @MapsId("familyId")
+  @JoinColumn(name = "family_id")
+  private Family family;
+
+  @ManyToOne
+  @MapsId("childId")
+  @JoinColumn(name = "child_id")
+  private Person child;
 
   public FamilyChildKey getId() {
     return id;
@@ -36,13 +46,8 @@ public class FamilyChild {
     this.child = child;
   }
 
-  @ManyToOne
-  @MapsId("familyId")
-  @JoinColumn(name = "family_id")
-  private Family family;
-
-  @ManyToOne
-  @MapsId("childId")
-  @JoinColumn(name = "child_id")
-  private Person child;
+  @Override
+  public String toString() {
+    return "FamilyChild [id=" + id + ", family_id=" + family.getId() + ", child_id=" + child + "]";
+  }
 }

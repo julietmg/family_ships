@@ -30,5 +30,10 @@ public class FamilyChildKey implements Serializable {
         this.childId = childId;
     }
 
+    @Override
+    public String toString() {
+        return "FamilyChildKey [familyId=" + familyId + ", childId=" + childId + "]";
+    }
+
 
 }

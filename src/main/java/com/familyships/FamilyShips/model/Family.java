@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 
+// TODO: Remember to have something that cleans up empty families!
 @Entity
 public class Family {
     @Id
@@ -16,6 +17,9 @@ public class Family {
 
     @OneToMany(mappedBy = "family")
     private Set<FamilyParent> parents; 
+
+    @OneToMany(mappedBy = "family")
+    private Set<FamilyChild> children;
 
     public Integer getId() {
         return id;
@@ -41,7 +45,8 @@ public class Family {
         this.children = children;
     }
 
-    @OneToMany(mappedBy = "family")
-    private Set<FamilyChild> children;
-
+    @Override
+    public String toString() {
+        return "Family [id=" + id + ", parents=" + parents + ", children=" + children + "]";
+    }
 }
