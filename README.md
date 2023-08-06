@@ -2,6 +2,8 @@
 
 A web application for creating and visualizing family trees.
 
+![demo.png](demo.png)
+
 ## How to host?
 
 ### Secrets

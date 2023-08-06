@@ -8,8 +8,6 @@
     <meta name="description" content="" />
     <meta name="viewport" content="width=device-width" />
     <base href="/" />
-    <link rel="stylesheet" type="text/css" href="/webjars/bootstrap/css/bootstrap.min.css" />
-    <link rel="stylesheet" type="text/css" href="index.css" />
     <script type="text/javascript" src="/webjars/jquery/jquery.min.js"></script>
     <script type="text/javascript" src="/webjars/bootstrap/js/bootstrap.min.js"></script>
     <script type="text/javascript" src="/webjars/js-cookie/js.cookie.js"></script>
@@ -83,6 +81,10 @@
             $("#id").html(data.id);
             $(".unauthenticated").hide();
             $(".authenticated").show();
+            let script = document.createElement('script');
+            script.type = "module";
+            script.src = "tree.js";
+            document.body.appendChild(script);
         });
 
         var logout = function () {
