@@ -113,7 +113,7 @@ public class ModelController {
             familyParentRepository.delete(familyParent);
         }
 
-        String deletedFamilyId = family.getId().toString(0);
+        String deletedFamilyId = family.getId().toString();
         familyRepository.delete(family);
         return deletedFamilyId + " was deleted";
     }

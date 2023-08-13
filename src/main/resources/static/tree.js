@@ -17,6 +17,7 @@ for (const person of people) {
 console.log(familiesDict);
 console.log(peoplesDict);
 
+// TODO: Sort everything by age.
 function parents(person_id) {
     let result = [];
     const person = peoplesDict[person_id];
@@ -129,6 +130,8 @@ function addLeftConstraint(aId, bId) /* Bool */ {
             return false;
         }
 
+        // TODO: Consider what happens when the parents are not from the same family. (adoption)
+
         // Follow the left ascendant for node a.
         let aLeftAscendant = aParentIds[0];
         let aAscendantLayer = personsLayer[aLeftAscendant];
@@ -143,6 +146,9 @@ function addLeftConstraint(aId, bId) /* Bool */ {
             bRightAscendant = bParentIds[1];
         }
 
+        // TODO: There can only be one of this kind, so return false sometimes here.
+        // TODO: This check is more complex in general. What if the family is already hooked up, but
+        // there is a different representant on that side.
         // If they are on the same layer and are already correctly wired up, finish early.
         if (aAscendantLayer.id == bAscendantLayer.id &&
             aAscendantLayer.constraints[aLeftAscendant].left == bRightAscendant) {
@@ -277,7 +283,9 @@ while (idsOfPeopleToLayout.size > 0) {
 }
 
 // We now assign information to people based on our fancy topological sort.
-// TODO: Walk the tree one more time to ensure soft sibling constraints.
+// TODO: Walk the tree one more time to ensure soft sibling constraints and layout the tree nicely on x/y axes.
+// TODO: Make this more stable, avoid iterating through sets too much if they
+// decide of order of things.
 let topologicalSortId = 0;
 for(const layer of layers) {
     for(const personId in layer.constraints) {
@@ -300,8 +308,8 @@ const margin = { top: 20, right: 90, bottom: 30, left: 90 },
     width = 660 - margin.left - margin.right,
     height = 500 - margin.top - margin.bottom;
 
+// TODO: Add different spacing.
 const distBetweenLayers = height / (layers.length+1);
-
 for(let y = 0; y < layers.length; y++) {
     const layer = layers[y];
     let row = [];
@@ -322,6 +330,10 @@ for(let y = 0; y < layers.length; y++) {
     }
 }
 
+// TODO: Infinite scrollable space.
+// TODO: Elbows and symbols.
+// TODO: Better visualization with buttons and everything.
+// TODO: Nice way of handling people that are offline/logged out for some reason.
 
 // append the svg object to the body of the page
 // appends a 'group' element to 'svg'
@@ -357,6 +369,8 @@ const partner = g.selectAll(".partner")
             + " " + target.x + "," + target.y;
     });
 
+
+// TODO: Add different types of nodes (for family and for people) and visualize nice elbows.
 let parentship = [];
 for(const personId in peoplesDict) {
     const parentIds = parents(personId);
