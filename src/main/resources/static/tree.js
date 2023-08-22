@@ -18,9 +18,9 @@ console.log(familiesDict);
 console.log(peoplesDict);
 
 // TODO: Sort everything by age.
-function parents(person_id) {
+function parents(personId) {
     let result = [];
-    const person = peoplesDict[person_id];
+    const person = peoplesDict[personId];
     for (const familyChild of person.childOfFamily) {
         const familyId = familyChild.id.familyId;
         const family = familiesDict[familyId];
@@ -33,9 +33,9 @@ function parents(person_id) {
     return result;
 }
 
-function siblings(person_id) {
+function siblings(personId) {
     let result = [];
-    const person = peoplesDict[person_id];
+    const person = peoplesDict[personId];
     for (const familyChild of person.childOfFamily) {
         const familyId = familyChild.id.familyId;
         const family = familiesDict[familyId];
@@ -48,15 +48,15 @@ function siblings(person_id) {
     return result;
 }
 
-function partners(person_id) {
+function partners(personId) {
     let result = [];
-    const person = peoplesDict[person_id];
+    const person = peoplesDict[personId];
     for (const familyParent of person.parentOfFamily) {
         const familyId = familyParent.id.familyId;
         const family = familiesDict[familyId];
         for (const familyParent of family.parents) {
             const parentId = familyParent.id.parentId;
-            if (parentId != person_id) {
+            if (parentId != personId) {
                 result.push(parentId);
             }
         }
@@ -65,9 +65,9 @@ function partners(person_id) {
     return result;
 }
 
-function children(person_id) {
+function children(personId) {
     let result = [];
-    const person = peoplesDict[person_id];
+    const person = peoplesDict[personId];
     for (const familyParent of person.parentOfFamily) {
         const familyId = familyParent.id.familyId;
         const family = familiesDict[familyId];
@@ -80,18 +80,27 @@ function children(person_id) {
     return result;
 }
 
+function parentOfFamilies(personId) {
+    let result = [];
+    const person = peoplesDict[personId];
+    for (const familyParent of person.parentOfFamily) {
+        const familyId = familyParent.id.familyId;
+        result.push(familyId);
+    }
+    result.sort((a, b) => a.id - b.id);
+    return result;
+}
 
-// TODO: Erase debug in the production version
-console.log("Info about person 1:")
-console.log(peoplesDict[1])
-console.log("Parents:")
-console.log(parents(1))
-console.log("Children:")
-console.log(children(1))
-console.log("Partners:")
-console.log(partners(1))
-console.log("Siblings:")
-console.log(siblings(1))
+function childOfFamilies(personId) {
+    let result = [];
+    const person = peoplesDict[personId];
+    for (const familyChild of person.childOfFamily) {
+        const familyId = familyChild.id.familyId;
+        result.push(familyId);
+    }
+    result.sort((a, b) => a.id - b.id);
+    return result;
+}
 
 let idsOfPeopleToLayout = new Set();
 for (const person of people) {
@@ -104,9 +113,39 @@ for (const person of people) {
 let layers = [];
 let personsLayer = {};
 
+function findLeftmostPartnerInFamily(partners) {
+    let person = partners[0];
+    let layer = personsLayer[person];
+    while (layer.constraints[person].left != null &&
+        partners.includes(layer.constraints[person].left)) {
+        person = layer.constraints[person].left;
+    }
+    return person;
+}
+
+function findRightmostPartnerInFamily(partners) {
+    let person = partners[0];
+    let layer = personsLayer[person];
+    while (layer.constraints[person].right != null &&
+        partners.includes(layer.constraints[person].right)) {
+        person = layer.constraints[person].right;
+    }
+    return person;
+}
+
+// This functions in a union-find manner, compressing the paths as it goes
+function findLeftMostPersonFromPerson(person) {
+    let layer = personsLayer[person];
+    while (layer.constraints[person].left != null) {
+        person = layer.constraints[person].leftmost
+    }
+    layer.constraints[person].leftmost = person
+    return person;
+}
+
 // Will attempt to add a left constraint between two people in the layout
-// Return `false` and doesn't modify anything if this constraint cannot be added.
-// TODO: Somehow avoid cycles.
+// Return `false` and doesn't modify anything (except maybe for leftmost) 
+// if this constraint cannot be added.
 function addLeftConstraint(aId, bId) /* Bool */ {
     // We assume both aId and bId are on the same layer and that the parents have
     // already been laid out on the layers above.
@@ -116,92 +155,105 @@ function addLeftConstraint(aId, bId) /* Bool */ {
     let bConstraints = layer.constraints[bId];
 
     // Check if we don't have any existing constraints on any of the nodes.
-    if (aConstraints.left != null || bConstraints.right != null && 
-        aConstraints.right != bId) {
+    if (aConstraints.left != null || bConstraints.right != null ||
+        (findLeftMostPersonFromPerson(aId) == findLeftMostPersonFromPerson(bId))) {
+        // TODO: Erase debug in the production version
+        console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
         return false;
     }
 
     let aParentIds = parents(aId);
     let bParentIds = parents(bId);
 
-    if (aParentIds.size > 0 && bParentIds.size > 0) {
-        // If either node has more than two parents, then its impossible to add this constraint.
-        if (aParentIds.size > 2 || bParentIds.size > 2) {
-            return false;
-        }
-
-        // TODO: Consider what happens when the parents are not from the same family. (adoption)
-
+    if (aParentIds.length > 0 && bParentIds.length > 0) {
         // Follow the left ascendant for node a.
-        let aLeftAscendant = aParentIds[0];
-        let aAscendantLayer = personsLayer[aLeftAscendant];
-        if (aParentIds.size == 2 && aAscendantLayer.constraints[aLeftAscendant].left == aParentIds[1]) {
-            aLeftAscendant = aParentIds[1];
-        }
+        let aLeftParent = findLeftmostPartnerInFamily(aParentIds);
+        let aParentLayer = personsLayer[aLeftParent];
+        
 
         // Follow the right ascendant for node b.
-        let bRightAscendant = bParentIds[0];
-        let bAscendantLayer = personsLayer[bRightAscendant];
-        if (bParentIds.size == 2 && bAscendantLayer.contents[bRightAscendant].right == bParentIds[1]) {
-            bRightAscendant = bParentIds[1];
-        }
+        let bRightParent = findRightmostPartnerInFamily(bParentIds);
+        let bParentLayer = personsLayer[bRightParent];
 
-        // TODO: There can only be one of this kind, so return false sometimes here.
-        // TODO: This check is more complex in general. What if the family is already hooked up, but
-        // there is a different representant on that side.
-        // If they are on the same layer and are already correctly wired up, finish early.
-        if (aAscendantLayer.id == bAscendantLayer.id &&
-            aAscendantLayer.constraints[aLeftAscendant].left == bRightAscendant) {
+        // This considers families with two parents. 
+        // As the line for children comes from the relationship between the parents
+        // We don't have to ensure constraints are set on the parents.
+        if (aParentLayer.constraints[aLeftParent].left == bRightParent) {
             aConstraints.left = bId;
             bConstraints.right = aId;
+
+            if (bConstraints.leftmost == null) {
+                bConstraints.leftmost = bId;
+            }
+            aConstraints.leftmost = bConstraints.leftmost;
+
+            // TODO: Erase debug in the production version
+            console.log(bId + " to the left of " + aId + " is added");
             return true;
         }
 
-        // Chase a ascendants up the tree until we land on the same layer.
-        while (aAscendantLayer < bAscendantLayer) {
-            let aLeftAscendantParents = parents(aLeftAscendant);
-            aLeftAscendant = aLeftAscendantParents[0];
-            aAscendantLayer = personsLayer[aLeftAscendant];
-            if (aLeftAscendantParents.size == 2 && aAscendantLayer[aLeftAscendant].left == aLeftAscendantParents[1]) {
-                aLeftAscendant = aLeftAscendantParents[1];
-            }
-
-            if (aAscendantLayer.id == bAscendantLayer.id) {
-                break;
-            }
-
-            if (aAscendantLayer.constraints[aLeftAscendant].left != null) {
-                return false;
-            }
+        if (aParentLayer.constraints[aLeftParent].leftmostChild != null) {
+            // TODO: Erase debug in the production version
+            console.log(bId + " to the left of " + aId + " is not possible because of the " + aId + " left parent " + aLeftParent);
+            return false;
         }
 
-        // Chase b ascendants up the tree until we land on the same layer.
-        while (bAscendantLayer < aAscendantLayer) {
-            let bRightAscendantParents = parents(aRightAscendant);
-            bRightAscendant = bRightAscendantParents[0];
-            bAscendantLayer = personsLayer[bRightAscendant];
-            if (bRightAscendantParents.size == 2 && bAscendantLayer[bRightAscendant].right == bRightAscendantParents[1]) {
-                bRightAscendant = bRightAscendantParents[1];
-            }
+        if (bParentLayer.constraints[bRightParent].rightmostChild != null) {
+            // TODO: Erase debug in the production version
+            console.log(bId + " to the left of " + aId + " is not possible because of the " + bId + " right parent " + bRightParent);
+            return false;
+        }
 
-            if (aAscendantLayer.id == bAscendantLayer.id) {
-                break;
-            }
+        let aLeftAscendant = aLeftParent;
+        let bRightAscendant = bRightParent;
 
-            if (bAscendantLayer.constraints[bRightAscendant].right != null) {
-                return false;
+        let bAscendantLayer = personsLayer[bRightAscendant];
+        let aAscendantLayer = personsLayer[aLeftAscendant];
+
+        // Chase a ascendants up the tree until we land on the same layer.
+        while (aAscendantLayer.id != bAscendantLayer.id) {
+            if (aAscendantLayer.id < bAscendantLayer.id) {
+                let aLeftAscendantParents = parents(aLeftAscendant);
+                if (aLeftAscendantParents.length == 0) {
+                    // TODO: Erase debug in the production version
+                    console.log(bId + " to the left of " + aId + " is not possible because of the " + aId + " left ascendant " + aLeftAscendant);
+                    return false;
+                }
+                aLeftAscendant = findLeftmostPartnerInFamily(aLeftAscendantParents);
+                aAscendantLayer = personsLayer[aLeftAscendant];
+            } else {
+                let bRightAscendantParents = parents(bRightAscendant);
+                if (bRightAscendantParents.length == 0) {
+                    // TODO: Erase debug in the production version
+                    console.log(bId + " to the left of " + aId + " is not possible because of the " + bId + " right ascendant " + bRightAscendant);
+                    return false;
+                }
+                bRightAscendant = findRightmostPartnerInFamily(bRightAscendantParents);
+                bAscendantLayer = personsLayer[bRightAscendant];
             }
         }
 
         // Check if we can add a constraint between the ascendants. If yes, then we can add a constraint here as well.
-        if (addLeftConstraint(aLeftAscendant, bRightAscendant)) {
-            aConstraints.left = bId;
-            bConstraints.right = aId;
-            return true;
+        if (!addLeftConstraint(aLeftAscendant, bRightAscendant)) {
+            // TODO: Erase debug in the production version
+            console.log(bId + " to the left of " + aId + " is not possible because the ascendants " + aLeftAscendant + " and " + bRightAscendant + " can't be joined.");
+            return false;
         }
+        aParentLayer.constraints[aLeftParent].leftmostChild = aId;
+        aParentLayer.constraints[findLeftmostPartnerInFamily(bParentIds)].rightmostChild = bId;
     }
+
     aConstraints.left = bId;
     bConstraints.right = aId;
+
+    if (bConstraints.leftmost == null) {
+        bConstraints.leftmost = bId;
+    }
+    aConstraints.leftmost = bConstraints.leftmost;
+
+    // TODO: Erase debug in the production version
+    console.log(bId + " to the left of " + aId + " is added");
+
     return true;
 }
 
@@ -268,11 +320,11 @@ while (idsOfPeopleToLayout.size > 0) {
             }
             consideredPartnerships.add(partnership);
 
-            if(addLeftConstraint(currentId, partnerId)) {
+            if (addLeftConstraint(currentId, partnerId)) {
                 continue;
             }
 
-            if(addLeftConstraint(partnerId, currentId)) {
+            if (addLeftConstraint(partnerId, currentId)) {
                 continue;
             }
 
@@ -287,21 +339,29 @@ while (idsOfPeopleToLayout.size > 0) {
 // TODO: Make this more stable, avoid iterating through sets too much if they
 // decide of order of things.
 let topologicalSortId = 0;
-for(const layer of layers) {
-    for(const personId in layer.constraints) {
+for (const layer of layers) {
+    for (const personId in layer.constraints) {
         if (peoplesDict[personId].topologicalSortId != null) {
             continue;
         }
-        peoplesDict[personId].topologicalSortId = topologicalSortId;
+        let currentId = findLeftMostPersonFromPerson(personId);
+
+        peoplesDict[currentId].topologicalSortId = topologicalSortId;
         topologicalSortId += 1;
-        let currentId = personId;
-        while(layer.constraints[currentId].right != null) {
+
+        while (layer.constraints[currentId].right != null) {
+
             currentId = layer.constraints[currentId].right;
+            if (peoplesDict[currentId].topologicalSortId != null) {
+                break;
+            }
             peoplesDict[currentId].topologicalSortId = topologicalSortId;
             topologicalSortId += 1;
         }
     }
 }
+
+console.log(peoplesDict);
 
 // set the dimensions and margins of the diagram
 const margin = { top: 20, right: 90, bottom: 30, left: 90 },
@@ -309,26 +369,29 @@ const margin = { top: 20, right: 90, bottom: 30, left: 90 },
     height = 500 - margin.top - margin.bottom;
 
 // TODO: Add different spacing.
-const distBetweenLayers = height / (layers.length+1);
-for(let y = 0; y < layers.length; y++) {
+const distBetweenLayers = height / (layers.length + 1);
+for (let y = 0; y < layers.length; y++) {
     const layer = layers[y];
     let row = [];
-    for(const personId in layer.constraints) {
+    for (const personId in layer.constraints) {
         row.push(personId);
     }
     row.sort((a, b) => peoplesDict[a].topologicalSortId - peoplesDict[b].topologicalSortId);
-    
-    const distBetweenPeople = width / (row.length+1);
-    for(let x = 0; x < row.length; x++) {
+
+    const distBetweenPeople = width / (row.length + 1);
+    for (let x = 0; x < row.length; x++) {
         const personId = row[x];
-        
+
         let node = {};
-        node.x = (x+1) * distBetweenPeople;
-        node.y = (y+1) * distBetweenLayers;
+        node.x = (x + 1) * distBetweenPeople;
+        node.y = (y + 1) * distBetweenLayers;
         node.personId = +personId;
         peoplesDict[personId].node = node;
     }
 }
+
+// TODO: Get rid of output for production
+console.log(layers);
 
 // TODO: Infinite scrollable space.
 // TODO: Elbows and symbols.
@@ -346,9 +409,8 @@ const svg = d3.select("body").append("svg")
             "translate(" + margin.left + "," + margin.top + ")");
 
 let partnerships = [];
-for(const personId in peoplesDict) {
-    for(const partnerId of partners(personId)) {
-        console.log(partnerId);
+for (const personId in peoplesDict) {
+    for (const partnerId of partners(personId)) {
         // To prevent from drawing twice.
         if (personId < partnerId) {
             partnerships.push([personId, partnerId]);
@@ -372,21 +434,21 @@ const partner = g.selectAll(".partner")
 
 // TODO: Add different types of nodes (for family and for people) and visualize nice elbows.
 let parentship = [];
-for(const personId in peoplesDict) {
+for (const personId in peoplesDict) {
     const parentIds = parents(personId);
-    if(parentIds.length == 0) {
+    if (parentIds.length == 0) {
         continue;
     }
     let xAvg = 0;
     let yAvg = 0;
-    for(const parentId of parents(personId)) {
+    for (const parentId of parents(personId)) {
         xAvg += peoplesDict[parentId].node.x;
         yAvg += peoplesDict[parentId].node.y;
     }
     xAvg /= parentIds.length;
     yAvg /= parentIds.length;
     // TODO: Add family id here for easier debugging.
-    parentship.push([personId, {x:xAvg, y:yAvg}]);
+    parentship.push([personId, { x: xAvg, y: yAvg }]);
 }
 
 // adds the links between the nodes
@@ -403,7 +465,7 @@ const parent = g.selectAll(".parent")
     });
 
 let nodes = [];
-for(const personId in peoplesDict) {
+for (const personId in peoplesDict) {
     nodes.push(personId);
 }
 
@@ -414,9 +476,26 @@ const node = g.selectAll(".node")
     .enter().append("g")
     .attr("class", d => "node")
     .attr("transform", d => {
-       return  "translate(" + peoplesDict[d].node.x + "," + peoplesDict[d].node.y + ")"
-    }
-    );
+        return "translate(" + peoplesDict[d].node.x + "," + peoplesDict[d].node.y + ")"
+    })
+    .on("click", function (event, d) {
+        // TODO: Erase debug in the production version
+        console.log("Info about person: " + d);
+        console.log(peoplesDict[d]);
+        console.log("Parents:");
+        console.log(parents(d));
+        console.log("Children:");
+        console.log(children(d));
+        console.log("Partners:");
+        console.log(partners(d));
+        console.log("Siblings:");
+        console.log(siblings(d));
+        console.log("Parent of families:");
+        console.log(parentOfFamilies(d));
+        console.log("Child of families:");
+        console.log(childOfFamilies(d));
+    })
+    ;
 
 // adds the circle to the node
 node.append("circle")
