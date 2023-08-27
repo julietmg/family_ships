@@ -55,6 +55,7 @@ public class ModelController {
         return result;
     }
 
+    // TODO: Allow for updating the data about the person.
     @PostMapping("/model/new_person")
     public String newPerson(@RequestParam String name, Principal principal) {
         // TODO: Authorization
@@ -128,6 +129,7 @@ public class ModelController {
         FamilyChild familyChild = new FamilyChild();
         familyChild.setId(familyChildKey);
         // TODO: Validate input
+        // TODO: Ensure no cycles.
         Person child = personRepository.findById(childId).get();
         Family family = familyRepository.findById(familyId).get();
         familyChild.setChild(child);
@@ -148,6 +150,7 @@ public class ModelController {
         FamilyParent familyParent = new FamilyParent();
         familyParent.setId(FamilyParentKey);
         // TODO: Validate input
+        // TODO: Ensure no cycles.
         Person parent = personRepository.findById(parentId).get();
         Family family = familyRepository.findById(familyId).get();
         familyParent.setFamily(family);
