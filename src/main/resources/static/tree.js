@@ -1,34 +1,34 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-const people = await fetch("/model/debug/people").then(data => data.json());
-const families = await fetch("/model/debug/families").then(data => data.json());
+const peopleData = await fetch("/model/debug/people").then(data => data.json());
+const familiesData = await fetch("/model/debug/families").then(data => data.json());
 
-let familiesDict = {};
-for (const family of families) {
-    familiesDict[family.id] = family;
+let families = {};
+for (const family of familiesData) {
+    families[family.id] = family;
 }
 
-let peoplesDict = {};
-for (const person of people) {
-    peoplesDict[person.id] = person;
+let people = {};
+for (const person of peopleData) {
+    people[person.id] = person;
 }
 
 // TODO: Erase debug in the production version
-console.log(familiesDict);
-console.log(peoplesDict);
+console.log(families);
+console.log(people);
 
 function familyChildren(familyId) {
-    return familiesDict[familyId].children.map((x) => x.id.childId);
+    return families[familyId].children.map((x) => x.id.childId);
 }
 
 function familyParents(familyId) {
-    return familiesDict[familyId].parents.map((x) => x.id.parentId);
+    return families[familyId].parents.map((x) => x.id.parentId);
 }
 
 // TODO: Sort everything by age.
 function parents(personId) {
     let result = [];
-    const person = peoplesDict[personId];
+    const person = people[personId];
     for (const familyChild of person.childOfFamily) {
         const familyId = familyChild.id.familyId;
         for (const parentId of familyParents(familyId)) {
@@ -42,7 +42,7 @@ function parents(personId) {
 
 function siblings(personId) {
     let result = [];
-    const person = peoplesDict[personId];
+    const person = people[personId];
     for (const familyChild of person.childOfFamily) {
         const familyId = familyChild.id.familyId;
         for (const siblingId of familyChildren(familyId)) {
@@ -58,7 +58,7 @@ function siblings(personId) {
 
 function partners(personId) {
     let result = [];
-    const person = peoplesDict[personId];
+    const person = people[personId];
     for (const familyParent of person.parentOfFamily) {
         const familyId = familyParent.id.familyId;
         for (const parentId of familyParents(familyId)) {
@@ -74,7 +74,7 @@ function partners(personId) {
 
 function children(personId) {
     let result = [];
-    const person = peoplesDict[personId];
+    const person = people[personId];
     for (const familyParent of person.parentOfFamily) {
         const familyId = familyParent.id.familyId;
         for (const childId of familyChildren(familyId)) {
@@ -88,7 +88,7 @@ function children(personId) {
 
 function parentOfFamilies(personId) {
     let result = [];
-    const person = peoplesDict[personId];
+    const person = people[personId];
     for (const familyParent of person.parentOfFamily) {
         const familyId = familyParent.id.familyId;
         result.push(familyId);
@@ -99,7 +99,7 @@ function parentOfFamilies(personId) {
 
 function childOfFamilies(personId) {
     let result = [];
-    const person = peoplesDict[personId];
+    const person = people[personId];
     for (const familyChild of person.childOfFamily) {
         const familyId = familyChild.id.familyId;
         result.push(familyId);
@@ -125,45 +125,58 @@ function isSingleParent(personId) {
     return findSingletonFamilies(personId).length > 0;
 }
 
-let idsOfPeopleToLayout = new Set();
-for (const person of people) {
-    idsOfPeopleToLayout.add(person.id);
-}
 
 // TODO: Test this layout method thoroughly.
 
 // Algorithm lays out people with layers, starting with people with no parents.
+
+let peopleWithUnassignedLayer = new Set();
+for (const personId in people) {
+    peopleWithUnassignedLayer.add(personId);
+}
+
 let layers = [];
 let personsLayer = {};
+let constraints = {};
+let filledConstraints = new Set();
+
+for (const personId in people) {
+    constraints[personId] = {};
+}
 
 function findLeftmostPartnerInFamily(partners) {
-    let person = partners[0];
-    let layer = personsLayer[person];
-    while (layer.constraints[person].left != null &&
-        partners.includes(layer.constraints[person].left)) {
-        person = layer.constraints[person].left;
+    let personId = partners[0];
+    while (constraints[personId].left != null &&
+        partners.includes(constraints[personId].left)) {
+        personId = constraints[personId].left;
     }
-    return person;
+    return personId;
 }
 
 function findRightmostPartnerInFamily(partners) {
-    let person = partners[0];
-    let layer = personsLayer[person];
-    while (layer.constraints[person].right != null &&
-        partners.includes(layer.constraints[person].right)) {
-        person = layer.constraints[person].right;
+    let personId = partners[0];
+    while (constraints[personId].right != null &&
+        partners.includes(constraints[personId].right)) {
+        personId = constraints[personId].right;
     }
-    return person;
+    return personId;
 }
 
-// This functions in a union-find manner, compressing the paths as it goes
-function findLeftMostPersonFromPerson(person) {
-    const layer = personsLayer[person];
-    while (layer.constraints[person].left != null) {
-        person = layer.constraints[person].leftmost
+// This functions in a union-find manner, compressing the paths as it goes.
+// TODO: Make this true. So emberassing.
+function findLeftMostPersonFromPerson(personId) {
+    while (constraints[personId].left != null) {
+        personId = constraints[personId].leftmost
     }
-    layer.constraints[person].leftmost = person
-    return person;
+    constraints[personId].leftmost = personId
+    return personId;
+}
+
+function findRightMostPersonFromPerson(personId) {
+    while (constraints[personId].right != null) {
+        personId = constraints[personId].right
+    }
+    return personId;
 }
 
 // Will attempt to add a left constraint between two people in the layout.
@@ -172,10 +185,8 @@ function findLeftMostPersonFromPerson(person) {
 function addSoftLeftConstraint(aId, bId) /* Bool */ {
     // We assume both aId and bId are on the same layer and that the parents have
     // already been laid out on the layers above.
-    const layer = personsLayer[aId];
-
-    let aConstraints = layer.constraints[aId];
-    let bConstraints = layer.constraints[bId];
+    let aConstraints = constraints[aId];
+    let bConstraints = constraints[bId];
 
     // Check if we don't have any existing constraints on any of the nodes.
     if (aConstraints.left != null || bConstraints.right != null ||
@@ -209,8 +220,8 @@ function addLeftConstraint(aId, bId) /* Bool */ {
     // already been laid out on the layers above.
     const layer = personsLayer[aId];
 
-    let aConstraints = layer.constraints[aId];
-    let bConstraints = layer.constraints[bId];
+    let aConstraints = constraints[aId];
+    let bConstraints = constraints[bId];
 
     // Check if we don't have any existing constraints on any of the nodes.
     if (aConstraints.left != null || bConstraints.right != null ||
@@ -220,26 +231,22 @@ function addLeftConstraint(aId, bId) /* Bool */ {
         return false;
     }
 
-    // TODO: This assumes too much about the parents.
-    // We must take the parents of the family aId and bId are in.
-    // If there are multiple then fail. (this doesn't happen)
-    // TODO: Another problem is when we would want to be a rightmost child
-    // but there is already a singleton family rightmost child.
-    // or thre is a singleton family in general.
-
-    if (childOfFamilies(aId).length > 1) {
-        return false;
-    }
-
-    if (childOfFamilies(bId).length > 1) {
-        return false;
-    }
-
     // TODO: What if the childis in multiple families?
     let aParentIds = parents(aId);
     let bParentIds = parents(bId);
 
     if (aParentIds.length > 0 && bParentIds.length > 0) {
+        if (childOfFamilies(aId).length > 1) {
+            return false;
+        }
+    
+        if (childOfFamilies(bId).length > 1) {
+            return false;
+        }
+
+        const aFamilyId = childOfFamilies(aId)[0];
+        const bFamilyId = childOfFamilies(bId)[0];
+
         // Follow the left ascendant for node a.
         let aLeftParent = findLeftmostPartnerInFamily(aParentIds);
         let aParentLayer = personsLayer[aLeftParent];
@@ -248,23 +255,6 @@ function addLeftConstraint(aId, bId) /* Bool */ {
         let bRightParent = findRightmostPartnerInFamily(bParentIds);
         let bLeftParent = findLeftmostPartnerInFamily(bParentIds);
         let bParentLayer = personsLayer[bRightParent];
-
-        // This considers families with two parents. 
-        // As the line for children comes from the relationship between the parents
-        // We don't have to ensure constraints are set on the parents.
-        if (aParentLayer.constraints[aLeftParent].left == bRightParent) {
-            aConstraints.left = bId;
-            bConstraints.right = aId;
-
-            if (bConstraints.leftmost == null) {
-                bConstraints.leftmost = bId;
-            }
-            aConstraints.leftmost = bConstraints.leftmost;
-
-            // TODO: Erase debug in the production version
-            console.log(bId + " to the left of " + aId + " is added");
-            return true;
-        }
 
         // We will need to draw the single parented children somewhere
         if (aParentIds.length > 1 && isSingleParent(aLeftParent)) {
@@ -276,10 +266,7 @@ function addLeftConstraint(aId, bId) /* Bool */ {
             return false; 
         }
 
-        // TODO: There might be singleton families, that might be more appropriate
-        // for being a leftmostChild. Consider that!
-
-        if (aParentLayer.constraints[aLeftParent].leftmostChild != null) {
+        if (constraints[aLeftParent].leftmostChild != null) {
             // TODO: Erase debug in the production version
             console.log(bId + " to the left of " + aId + " is not possible because of the " + aId + " left parent " + aLeftParent);
             return false;
@@ -289,7 +276,7 @@ function addLeftConstraint(aId, bId) /* Bool */ {
         // TODO: There might be singleton families, that might be more appropriate
         // for being a rightMost. Consider that!
 
-        if (bParentLayer.constraints[bRightParent].rightmostChild != null) {
+        if (constraints[bRightParent].rightmostChild != null) {
             // TODO: Erase debug in the production version
             console.log(bId + " to the left of " + aId + " is not possible because of the " + bId + " right parent " + bRightParent);
             return false;
@@ -335,8 +322,8 @@ function addLeftConstraint(aId, bId) /* Bool */ {
             console.log(bId + " to the left of " + aId + " is not possible because the ascendants " + aLeftAscendant + " and " + bRightAscendant + " can't be joined.");
             return false;
         }
-        aParentLayer.constraints[aLeftParent].leftmostChild = aId;
-        aParentLayer.constraints[bLeftParent].rightmostChild = bId;
+        constraints[aLeftParent].leftmostChild = aId;
+        constraints[bLeftParent].rightmostChild = bId;
     }
 
     return addSoftLeftConstraint(aId, bId);
@@ -345,16 +332,15 @@ function addLeftConstraint(aId, bId) /* Bool */ {
 // TODO: Make this algorithm stable.
 
 
-let filledConstraints = new Set();
-while (idsOfPeopleToLayout.size > 0) {
+while (peopleWithUnassignedLayer.size > 0) {
     let considered = new Set();
 
     // Get people that are not yet laid out, but for whose
     // all parents are laid out.
-    for (const id of idsOfPeopleToLayout) {
+    for (const id of peopleWithUnassignedLayer) {
         let hasNonLaidOutParents = false;
         for (const parentId of parents(id)) {
-            if (idsOfPeopleToLayout.has(parentId)) {
+            if (peopleWithUnassignedLayer.has(parentId)) {
                 hasNonLaidOutParents = true;
                 break;
             }
@@ -376,7 +362,7 @@ while (idsOfPeopleToLayout.size > 0) {
     // Throw them away, if the partner still has parent constraints.
     for (const id of considered) {
         for (const partnerId of partners(id)) {
-            if (idsOfPeopleToLayout.has(partnerId) && !considered.has(partnerId)) {
+            if (peopleWithUnassignedLayer.has(partnerId) && !considered.has(partnerId)) {
                 considered.delete(id);
                 break;
             }
@@ -387,7 +373,7 @@ while (idsOfPeopleToLayout.size > 0) {
     // TODO: Unless the siblings parent is weird. Avoid cycles.
     for (const id of considered) {
         for (const siblingId of siblings(id)) {
-            if (idsOfPeopleToLayout.has(siblingId) && !considered.has(siblingId)) {
+            if (peopleWithUnassignedLayer.has(siblingId) && !considered.has(siblingId)) {
                 considered.delete(id);
                 break;
             }
@@ -396,16 +382,15 @@ while (idsOfPeopleToLayout.size > 0) {
     // considered now contains all the people that will appear in this layer.
 
     // Now attempt to create a layer out of those people, possibly adding constraints to layers above.
-    let layer = {}; /* id, constraints */
+    let layer = [];
     layer.id = layers.length;
-    layer.constraints = {}; /* integer (personId) */
     for (const id of considered) {
-        idsOfPeopleToLayout.delete(id);
-        layer.constraints[id] = {}; /* leftmostChild, rightmostChild, left, right, leftmost */
+        peopleWithUnassignedLayer.delete(id);
+        layer.push(+id);
         personsLayer[id] = layer;
     }
 
-    for (const idStr in layer.constraints) {
+    for (const idStr of layer) {
         let currentId = +idStr;
 
         for (const partnerId of partners(currentId)) {
@@ -430,7 +415,7 @@ while (idsOfPeopleToLayout.size > 0) {
 }
 
 for(let layer of layers) {
-    for (const idStr in layer.constraints) {
+    for (const idStr of layer) {
         let currentId = +idStr;
         // TODO: Add all siblings in a completely different pass, to make sure the 
         // partners have as many chance to be matched as possible.
@@ -454,12 +439,10 @@ for(let layer of layers) {
 }
 
 let spaceBetweenLayers = 50.0;
-let spaceBetweenClusters = 90.0;
+let spaceBetweenClusters = 120.0;
 
 // For each person and for each family we want the exact x and y
 // coordinates on where to place them.
-// Note that, at this phase, those are not normalized yet and might
-// be just a path of relative offsets.
 let peoplePlanePosition = {};
 let familyPlanePosition = {};
 let layerCurrentWidth = {}; // keyed by layer.id
@@ -471,29 +454,22 @@ for (const layer of layers) {
 // This functions in a union-find manner, compressing the paths as it goes
 function findFirstPersonToTheLeftThatHasNoPosition(personId) {
     const layer = personsLayer[personId];
-    while (layer.constraints[personId].left != null && peoplePlanePosition[layer.constraints[personId].left] == null) {
-        personId = layer.constraints[personId].left
+    while (constraints[personId].left != null && peoplePlanePosition[constraints[personId].left] == null) {
+        personId = constraints[personId].left
     }
     return personId;
 }
 
+
 // TODO: Write some documentation about calculatePositions.
-// TODO: Update the concept so that calculatePositions automatically centers the given cluster.
-// Whatever that means.
 function calculatePositions(firstPersonId, lastPersonIdOrNull, x, y) {
     console.log("calculatePositions " + firstPersonId + " " + lastPersonIdOrNull + " " +  x + " " + y )
-    if (peoplePlanePosition[firstPersonId] != null) {
-        return x;
-    }
     const layer = personsLayer[firstPersonId];
-    const personOnTheRight = layer.constraints[firstPersonId].right;
+    const personOnTheRight = constraints[firstPersonId].right;
 
     if (firstPersonId != lastPersonIdOrNull && 
         personOnTheRight != null &&
         partners(firstPersonId).includes(personOnTheRight)) {
-        // TODO: Make naming clearer to reflect the fact on the bottom
-        // Note that we render the partner even if firstPersonId == lastPersonIdOrNull
-        // we consider partnerships to be more important.
         let twoPartnerFamily = null;
         for (const familyId of parentOfFamilies(firstPersonId)) {
             const parents = familyParents(familyId);
@@ -508,25 +484,27 @@ function calculatePositions(firstPersonId, lastPersonIdOrNull, x, y) {
         if (twoPartnerFamily == null) {
             return calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y);
         }
-        // const personOnTheRightOfThePersonOnTheRight = layer.constraints[personOnTheRight].right;
-        // if (personOnTheRightOfThePersonOnTheRight != null && partners(personOnTheRight).includes(personOnTheRightOfThePersonOnTheRight)) {
-        //     return calculateFamilyChainPositions(firstPersonId, lastPersonIdOrNull, x, y)
-        // }
+        const personOnTheRightOfThePersonOnTheRight = constraints[personOnTheRight].right;
+        if (personOnTheRightOfThePersonOnTheRight != null && partners(personOnTheRight).includes(personOnTheRightOfThePersonOnTheRight)) {
+            return calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y);
+        }
+        const personOnTheLeft = constraints[firstPersonId].left;
+        if (personOnTheLeft != null && partners(personOnTheLeft).includes(firstPersonId)) {
+            return calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y);
+        }
         return calculateDoubleParentFamilyPositions(firstPersonId, lastPersonIdOrNull, x, y);
 
     }
     return calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y);
 }
 
-// TODO: Consider naming again. e.g. calculatePositions_singlePerson, or something like this?
-function calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y) {
-    console.log("calculateSinglePersonPositions " + firstPersonId + " " + lastPersonIdOrNull + " " + x + " " + y)
+function fillLeftFamily(firstPersonId, lastPersonIdOrNull, x, y) {
+    console.log("fillLeftFamily " + firstPersonId + " " + lastPersonIdOrNull + " " + x + " " + y)
     const layer = personsLayer[firstPersonId];
-
-    // TODO: This should be part of the general "fill families" vibe.
-    if (layer.constraints[firstPersonId].left != null &&
-        partners(firstPersonId).includes(layer.constraints[firstPersonId].left)) {
-        const personOnTheLeft = layer.constraints[firstPersonId].left;
+     // TODO: This should be part of the general "fill families" vibe.
+     if (constraints[firstPersonId].left != null &&
+        partners(firstPersonId).includes(constraints[firstPersonId].left)) {
+        const personOnTheLeft = constraints[firstPersonId].left;
 
         let twoPartnerFamily = null;
         for (const familyId of parentOfFamilies(firstPersonId)) {
@@ -544,27 +522,37 @@ function calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y)
             let twoPartnerFamilyBoxEnd = null;
             const children = familyChildren(twoPartnerFamily);
             if (children.length != 0) {
-                let startingChild = layer.constraints[firstPersonId].leftmostChild;
+                let startingChild = constraints[firstPersonId].leftmostChild;
                 if (startingChild == null) {
                     startingChild = children[0];
                 }
                 // TODO: This doesn't care about the singleton family of the personOnTheLeft.
                 twoPartnerFamilyBoxStart = peoplePlanePosition[personOnTheLeft].x;
-                if (twoPartnerFamilyBoxStart < layerCurrentWidth[layer.id]) {
-                    twoPartnerFamilyBoxStart = layerCurrentWidth[layer.id] + spaceBetweenClusters;
+                if (layerCurrentWidth[personsLayer[startingChild].id] > 0 && 
+                    twoPartnerFamilyBoxStart < layerCurrentWidth[personsLayer[startingChild].id] + spaceBetweenClusters) {
+                    twoPartnerFamilyBoxStart = layerCurrentWidth[personsLayer[startingChild].id] + spaceBetweenClusters;
                 }
 
-                if (children.length == 1) {
-                    twoPartnerFamilyBoxStart = (twoPartnerFamilyBoxStart + x) / 2;
-                }
+                // if (children.length == 1) {
+                //     twoPartnerFamilyBoxStart = (twoPartnerFamilyBoxStart + x) / 2;
+                // }
 
                 twoPartnerFamilyBoxEnd = calculatePositions(
                     findFirstPersonToTheLeftThatHasNoPosition(startingChild),
-                    layer.constraints[firstPersonId].rightmostChild,
+                    constraints[firstPersonId].rightmostChild,
                     twoPartnerFamilyBoxStart, y + spaceBetweenLayers);
+                return twoPartnerFamilyBoxEnd;
             }
         }
     }
+    return x;
+}
+
+// TODO: Consider naming again. e.g. calculatePositions_singlePerson, or something like this?
+function calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y) {
+    console.log("calculateSinglePersonPositions " + firstPersonId + " " + lastPersonIdOrNull + " " + x + " " + y)
+    const layer = personsLayer[firstPersonId];
+    fillLeftFamily(firstPersonId, lastPersonIdOrNull, x, y);
 
     const singletonFamilyBoxEnd = calculateSingletonFamiliesPositions(firstPersonId, x, y);
     let currentBoxEnd = null;
@@ -576,9 +564,7 @@ function calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y)
         currentBoxEnd = x;
     }
 
-    
-
-    const personOnTheRight = layer.constraints[firstPersonId].right;
+    const personOnTheRight = constraints[firstPersonId].right;
     if (personOnTheRight == null || firstPersonId == lastPersonIdOrNull) {
         layerCurrentWidth[layer.id] = currentBoxEnd;
         return currentBoxEnd;
@@ -590,7 +576,10 @@ function calculateSinglePersonPositions(firstPersonId, lastPersonIdOrNull, x, y)
 function calculateDoubleParentFamilyPositions(firstPersonId, lastPersonIdOrNull, x, y) {
     console.log("calculateDoubleParentFamilyPositions " + firstPersonId + " " + lastPersonIdOrNull + " " + x + " " + y)
     const layer = personsLayer[firstPersonId];
-    const personOnTheRight = layer.constraints[firstPersonId].right;
+
+    fillLeftFamily(firstPersonId, lastPersonIdOrNull, x, y);
+
+    const personOnTheRight = constraints[firstPersonId].right;
     const singletonFamilyBoxEnd = calculateSingletonFamiliesPositions(firstPersonId, x, y);
     let twoPartnerFamily = null;
     for (const familyId of parentOfFamilies(firstPersonId)) {
@@ -608,7 +597,8 @@ function calculateDoubleParentFamilyPositions(firstPersonId, lastPersonIdOrNull,
     let twoPartnerFamilyBoxEnd = null;
     const children = familyChildren(twoPartnerFamily);
     if (children.length != 0) {
-        let startingChild = layer.constraints[firstPersonId].leftmostChild;
+       
+        let startingChild = constraints[firstPersonId].leftmostChild;
         if (startingChild == null) {
             startingChild = children[0];
         }
@@ -618,14 +608,22 @@ function calculateDoubleParentFamilyPositions(firstPersonId, lastPersonIdOrNull,
             twoPartnerFamilyBoxStart = singletonFamilyBoxEnd + spaceBetweenClusters;
         }
 
-        let singleChildOffset = 0;
-        if (children.length == 1) {
-            singleChildOffset = spaceBetweenClusters / 2;
+        if (layerCurrentWidth[personsLayer[startingChild].id] > 0 && 
+            twoPartnerFamilyBoxStart < layerCurrentWidth[personsLayer[startingChild].id] + spaceBetweenClusters) {
+            twoPartnerFamilyBoxStart = layerCurrentWidth[personsLayer[startingChild].id] + spaceBetweenClusters;
         }
 
+        let singleChildOffset = 0;
+        // if (children.length == 1) {
+        //     singleChildOffset = spaceBetweenClusters / 2;
+        // }
+
+        // TODO: Documentation
+        // This works, because rightmostChild is set correctly.
+        // If the partner is not from any parent, then this child wouldn't be a rightmost child.
         twoPartnerFamilyBoxEnd = calculatePositions(
             findFirstPersonToTheLeftThatHasNoPosition(startingChild),
-            layer.constraints[firstPersonId].rightmostChild,
+            constraints[firstPersonId].rightmostChild,
             twoPartnerFamilyBoxStart + singleChildOffset, y + spaceBetweenLayers);
     }
 
@@ -679,7 +677,7 @@ function calculateDoubleParentFamilyPositions(firstPersonId, lastPersonIdOrNull,
         familyPlanePosition[twoPartnerFamily] = { x: firstPersonX + spaceBetweenClusters / 2, y: y };
     }
 
-    let personOnTheRightOfThePersonOnTheRight = layer.constraints[personOnTheRight].right;
+    let personOnTheRightOfThePersonOnTheRight = constraints[personOnTheRight].right;
     if (personOnTheRightOfThePersonOnTheRight == null || 
         firstPersonId == lastPersonIdOrNull || 
         personOnTheRight == lastPersonIdOrNull) {
@@ -687,15 +685,6 @@ function calculateDoubleParentFamilyPositions(firstPersonId, lastPersonIdOrNull,
         return currentBoxEnd;
     }
     return calculatePositions(personOnTheRightOfThePersonOnTheRight, lastPersonIdOrNull, currentBoxEnd + spaceBetweenClusters, y);
-}
-
-// More than two parents in a chain. Chains are hard.
-function calculateFamilyChainPositions(firstPersonId, lastPersonIdOrNull, x, y) {
-    console.log("calculateFamilyChainPositions " + firstPersonId + " " + lastPersonIdOrNull + " " + x + " " + y)
-    const layer = personsLayer[firstPersonId];
-    const singletonFamilyBoxEnd = calculateSingletonFamiliesPositions(firstPersonId, x, y);
-    // TODO: REMEMBER: layerCurrentWidth[layer.id] = currentBoxEnd;
-    return x;
 }
 
 function calculateSingletonFamiliesPositions(personId, x, y) {
@@ -710,7 +699,7 @@ function calculateSingletonFamiliesPositions(personId, x, y) {
         if (children.length == 0) {
             continue;
         }
-        let startingChild = personsLayer[personId].constraints[personId].leftmostChild;
+        let startingChild = constraints[personId].leftmostChild;
         if (startingChild == null) {
             startingChild = children[0];
         }
@@ -721,7 +710,13 @@ function calculateSingletonFamiliesPositions(personId, x, y) {
         if (singletonFamilyIds[0] != familyId) {
             boxEnd += spaceBetweenClusters;
         }
-        boxEnd = calculatePositions(findFirstPersonToTheLeftThatHasNoPosition(startingChild), personsLayer[personId].constraints[personId].rightmostChild, boxEnd, y + spaceBetweenLayers);
+
+        if (layerCurrentWidth[personsLayer[startingChild].id] > 0 && 
+            boxEnd < layerCurrentWidth[personsLayer[startingChild].id] + spaceBetweenClusters) {
+            boxEnd = layerCurrentWidth[personsLayer[startingChild].id] + spaceBetweenClusters;
+        }
+
+        boxEnd = calculatePositions(findFirstPersonToTheLeftThatHasNoPosition(startingChild), constraints[personId].rightmostChild, boxEnd, y + spaceBetweenLayers);
     }
     layerCurrentWidth[personsLayer[personId].id] = boxEnd;
     return boxEnd;
@@ -729,7 +724,6 @@ function calculateSingletonFamiliesPositions(personId, x, y) {
 
 let currentYPosition = 0;
 let maxBoxEnd = 0;
-// TODO: Track max box X per layer to ensure no collisions for free flowing people.
 for (const layer of layers) {
     // TODO: Maybe store all the families for which we need to find the
     // places in this pass.
@@ -744,7 +738,7 @@ for (const layer of layers) {
     if (currentXPosition > 0) {
         currentXPosition += spaceBetweenClusters;
     }
-    for (const personId in layer.constraints) {
+    for (const personId in constraints) {
         if (peoplePlanePosition[personId] != null) {
             continue;
         }
@@ -767,10 +761,10 @@ const distBetweenLayers = height / (layers.length + 1);
 for (let y = 0; y < layers.length; y++) {
     const layer = layers[y];
     let row = [];
-    for (const personId in layer.constraints) {
+    for (const personId in constraints) {
         row.push(personId);
     }
-    row.sort((a, b) => peoplesDict[a].topologicalSortId - peoplesDict[b].topologicalSortId);
+    row.sort((a, b) => people[a].topologicalSortId - people[b].topologicalSortId);
 
     const distBetweenPeople = width / (row.length + 1);
     for (let x = 0; x < row.length; x++) {
@@ -780,7 +774,7 @@ for (let y = 0; y < layers.length; y++) {
         node.x = (x + 1) * distBetweenPeople;
         node.y = (y + 1) * distBetweenLayers;
         node.personId = +personId;
-        peoplesDict[personId].node = node;
+        people[personId].node = node;
     }
 }
 
@@ -811,7 +805,7 @@ const svg = d3.select("body").append("svg")
 
 
 let partnerships = [];
-for (const personId in peoplesDict) {
+for (const personId in people) {
     for (const partnerId of partners(personId)) {
         // To prevent from drawing twice.
         if (personId < partnerId) {
@@ -836,7 +830,7 @@ const partner = g.selectAll(".partner")
 
 // TODO: Add different types of nodes (for family and for people) and visualize nice elbows.
 let parentship = [];
-for (const personId in peoplesDict) {
+for (const personId in people) {
     const parentIds = parents(personId);
     if (parentIds.length == 0) {
         continue;
@@ -867,7 +861,7 @@ const parent = g.selectAll(".parent")
     });
 
 let nodes = [];
-for (const personId in peoplesDict) {
+for (const personId in people) {
     nodes.push(personId);
 }
 
@@ -886,7 +880,7 @@ const node = g.selectAll(".node")
     .on("click", function (event, d) {
         // TODO: Erase debug in the production version
         console.log("Info about person: " + d);
-        console.log(peoplesDict[d]);
+        console.log(people[d]);
         console.log("Parents:");
         console.log(parents(d));
         console.log("Children:");
@@ -902,7 +896,9 @@ const node = g.selectAll(".node")
         console.log("Coordinates:");
         console.log(peoplePlanePosition[d]);
         console.log("Constraints:");
-        console.log(personsLayer[d].constraints[d]);
+        console.log(constraints[d]);
+        console.log("Layer:");
+        console.log(personsLayer[d]);
     })
     ;
 
@@ -918,4 +914,4 @@ node.append("text")
     .attr("x", d => (15 + 5) * -1)
     .attr("y", d => -(15 + 5))
     .style("text-anchor", d => "end")
-    .text(d => peoplesDict[d].formattedNames + " " + d);
+    .text(d => people[d].formattedNames + " " + d);
