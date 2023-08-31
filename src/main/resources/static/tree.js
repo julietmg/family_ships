@@ -147,14 +147,14 @@ for (const personId in people) {
     constraints[personId] = {};
 }
 
-for(const familyId in families) {
+for (const familyId in families) {
     familyConstraints[familyId] = {};
 }
 
 // This functions in a union-find manner, compressing the paths as it goes.
 // TODO: Make this true. So emberassing.
 function leftmostOf(personId) {
-    if (constraints[personId].leftmost == null || 
+    if (constraints[personId].leftmost == null ||
         constraints[personId].leftmost == personId) {
         return personId;
     }
@@ -165,7 +165,7 @@ function leftmostOf(personId) {
 
 function leftmostOfSet(peopleIds) {
     let currentId = peopleIds[0];
-    while(constraints[currentId].left != null && 
+    while (constraints[currentId].left != null &&
         peopleIds.includes(constraints[currentId].left)) {
         currentId = constraints[currentId].left;
     }
@@ -174,7 +174,7 @@ function leftmostOfSet(peopleIds) {
 
 function rightmostOfSet(peopleIds) {
     let currentId = peopleIds[0];
-    while(constraints[currentId].right != null && 
+    while (constraints[currentId].right != null &&
         peopleIds.includes(constraints[currentId].right)) {
         currentId = constraints[currentId].right;
     }
@@ -182,13 +182,13 @@ function rightmostOfSet(peopleIds) {
 }
 
 function areDirectNeighbours(peopleIds) {
-    if(peopleIds.length <= 1) {
+    if (peopleIds.length <= 1) {
         return true;
     }
     let currentId = leftmostOfSet(peopleIds);
     let visited = 1;
-    while(visited < peopleIds.length) {
-        if (constraints[currentId].right != null && 
+    while (visited < peopleIds.length) {
+        if (constraints[currentId].right != null &&
             peopleIds.includes(constraints[currentId].right)) {
             visited += 1;
             currentId = constraints[currentId].right;
@@ -261,15 +261,15 @@ function addLeftConstraint(aId, bId) /* Bool */ {
         let aParentIds = familyParents(aFamilyId);
         let bParentIds = familyParents(bFamilyId);
 
-        if(aParentIds.length <= 0 || bParentIds.length <= 0) {
+        if (aParentIds.length <= 0 || bParentIds.length <= 0) {
             return addSoftLeftConstraint(aId, bId);
         }
 
-        if(!areDirectNeighbours(aParentIds)) {
+        if (!areDirectNeighbours(aParentIds)) {
             return false;
         }
 
-        if(!areDirectNeighbours(bParentIds)) {
+        if (!areDirectNeighbours(bParentIds)) {
             return false;
         }
 
@@ -290,14 +290,14 @@ function addLeftConstraint(aId, bId) /* Bool */ {
         if (aParentIds.length > 1 && isSingleParent(aLeftParentId)) {
             // TODO: Erase debug in the production version
             console.log(bId + " to the left of " + aId + " is not possible because " + aLeftParentId + " is a single parent");
-            return false; 
+            return false;
         }
 
         // We will need to draw the single parented children somewhere
         if (bParentIds.length > 1 && isSingleParent(bRightParentId)) {
             // TODO: Erase debug in the production version
             console.log(bId + " to the left of " + aId + " is not possible because " + bRightParentId + " is a single parent");
-            return false; 
+            return false;
         }
 
         if (familyConstraints[aFamilyId].leftmostChild != null) {
@@ -320,6 +320,7 @@ function addLeftConstraint(aId, bId) /* Bool */ {
         }
         familyConstraints[aFamilyId].leftmostChild = aId;
         familyConstraints[bFamilyId].rightmostChild = bId;
+        constraints[aId].leftmostChildWithPartner = true;
     }
 
     return addSoftLeftConstraint(aId, bId);
@@ -412,20 +413,28 @@ console.log(familyConstraints);
 
 // -------------------------- Sorting people in each layer according to the collected constraints --------------------------
 
-let newLayers = [];
-for(const layer of layers) {
-    newLayers.push([]);
+let layout = [];
+for (const layer of layers) {
+    layout.push([]);
+    /*
+    The elements of each layout can have one of three kinds:
+    1. family (representing a family node)
+    2. person (representing a single person node, along with the families they are completing)
+    3. partners (representing a family of two people (each is a partner), along with their families)
+    4. partner (representing a person who is part of a partnership)
+    5. left-partner (representing a left person, of a broken down partnership)
+    */
 }
 
-let peopleInNewLayers = new Set();
+let peopleInLayout = new Set();
 
 function familiesCompletedBy(personId) {
     let result = [];
     for (const familyId of parentOfFamilies(personId)) {
         const parents = familyParents(familyId);
         let completing = true;
-        for(const parent of parents) {
-            if(!peopleInNewLayers.has(parent) && parent != personId) {
+        for (const parent of parents) {
+            if (!peopleInLayout.has(parent) && parent != personId) {
                 completing = false;
                 break;
             }
@@ -438,85 +447,295 @@ function familiesCompletedBy(personId) {
     return result;
 }
 
-function firstLeftNotInNewLayers(personId) {
-    while (constraints[personId].left != null && !peopleInNewLayers.has(constraints[personId].left)) {
+function firstLeftNotInLayout(personId) {
+    while (constraints[personId].left != null && !peopleInLayout.has(constraints[personId].left)) {
         personId = constraints[personId].left
     }
     return personId;
 }
 
-function pushPeopleUntilPersonIsPushed(personId) {
-    let current = firstLeftNotInNewLayers(personId);
+function pushPeopleIntoLayoutUntilPersonIsPushed(personId) {
+    let pushed = [];
+    let current = firstLeftNotInLayout(personId);
     while (current != personId) {
-        if (peopleInNewLayers.has(current)) {
+        if (peopleInLayout.has(current)) {
             continue;
         }
-        pushPersonIntoNewLayers(current);
+        const locator = pushPersonIntoLayout(current);
+        pushed.push(locator);
         current = constraints[current].right;
     }
-    pushPersonIntoNewLayers(personId);
+    const locator = pushPersonIntoLayout(personId);
+    pushed.push(locator);
+    return pushed;
 }
 
-function pushPersonIntoNewLayers(personId) {
-    peopleInNewLayers.add(personId);
-    newLayers[personsLayer[personId]].push(personId);
-    let familiesCompletedByCurrent = familiesCompletedBy(personId);
-    familiesCompletedByCurrent.sort((a,b)=>familyParents(b).length - familyParents(a).length);
-    for(const familyId of familiesCompletedByCurrent) {
-        let children = familyChildren(familyId);
-        children.sort((a,b)=> {
-            if (a == familyConstraints[familyId].leftmostChild || b == familyConstraints[familyId].rightmostChild) {
-                return -1;
-            }
-            if (a == familyConstraints[familyId].rightmostChild || b == familyConstraints[familyId].leftmostChild) {
-                return 1;
-            }
-        });
-        for (const child of children) {
-            if (peopleInNewLayers.has(child)) {
-                continue;
-            }
-            pushPeopleUntilPersonIsPushed(child);
+function pushFamilyChildrenIntoLayout(familyId) {
+    let pushed = [];
+    let children = familyChildren(familyId);
+    children.sort((a, b) => {
+        if (a == familyConstraints[familyId].leftmostChild || b == familyConstraints[familyId].rightmostChild) {
+            return -1;
         }
-    }
-}
-
-for(let layer of layers) {
-    for(const id of layer) {
-        if(peopleInNewLayers.has(id)) {
+        if (a == familyConstraints[familyId].rightmostChild || b == familyConstraints[familyId].leftmostChild) {
+            return 1;
+        }
+    });
+    for (const child of children) {
+        if (peopleInLayout.has(child)) {
             continue;
         }
-        pushPeopleUntilPersonIsPushed(id);
+
+        let pushedWithChild = pushPeopleIntoLayoutUntilPersonIsPushed(child);
+        for (const personId of pushedWithChild) {
+            pushed.push(personId);
+        }
+    }
+    return pushed;
+}
+
+function pushPersonIntoLayout(personId) {
+    peopleInLayout.add(personId);
+    let familiesCompletedByCurrent = familiesCompletedBy(personId);
+
+    // We use different heuristics depending on what we've done previously and what
+    // is the family structure of families, whose last parent is just being laid out
+    const previous = layout[personsLayer[personId]].pop();
+
+    let familiesClassification = { 0: [], 1: [], 2: [], ">2": [] };
+    for (const familyId of familiesCompletedByCurrent) {
+        let parentCount = familyParents(familyId).length;
+        if (parentCount <= 2) {
+            familiesClassification[parentCount].push(familyId);
+        } else {
+            familiesClassification[">2"].push(familyId);
+        }
+    }
+
+    let depth = 0;
+    let multiParentFamilyNodes = [];
+    for (const familyId of familiesClassification[">2"]) {
+        let pushed = pushFamilyChildrenIntoLayout(familyId);
+        multiParentFamilyNodes.push({ kind: "family", id: familyId, depth: depth, members: pushed });
+        depth += 1;
+    }
+
+    let singleParentFamilyNodes = [];
+    for (const familyId of familiesClassification[1]) {
+        let pushed = pushFamilyChildrenIntoLayout(familyId);
+        singleParentFamilyNodes.push({ kind: "family", id: familyId, depth: depth, members: pushed });
+    }
+    
+    if (familiesClassification[2].length == 1 &&
+        areDirectNeighbours(familyParents(familiesClassification[2][0]))
+    ) {
+        const partnerFamilyId = familiesClassification[2][0];
+        let pushed = pushFamilyChildrenIntoLayout(partnerFamilyId);
+        let partnerFamilyNode = { kind: "family", id: partnerFamilyId, depth: 0, members: pushed };
+
+        if (previous.kind == "person" &&
+            constraints[personId].leftmostChildWithPartner == true
+        ) {
+            previous.multiParentFamilyNodes = previous.multiParentFamilyNodes.concat(multiParentFamilyNodes);
+            layout[personsLayer[personId]].push({kind:"left-partner", person: previous, family:partnerFamilyNode});
+            layout[personsLayer[personId]].push({kind:"partner", id: personId, singleParentFamilies:singleParentFamilyNodes});
+        }
+        else if (previous.kind == "person" &&
+            constraints[personId].leftmostChildWithPartner != true) {
+            const leftPartner = {kind:"partner",id:previous.id, singleParentFamilies:previous.singleParentFamilies};
+            const rightPartner = {kind:"partner", id: personId, singleParentFamilies:singleParentFamilyNodes}
+            layout[personsLayer[personId]].push({
+                kind: "partners", family: partnerFamilyNode, left: leftPartner ,
+                right: rightPartner, leftFamilyNodes: previous.multiParentFamilyNodes, rightFamilyNodes: multiParentFamilyNodes
+            });
+        }
+        else if (previous.kind == "partners") {
+            const left = previous.left;
+            left.multiParentFamilyNodes = previous.leftFamilyNodes;
+            left.kind = "person";
+            const right = previous.right
+            right.kind = "person";
+            right.multiParentFamilyNodes = previous.rightFamilyNodes;
+            const family = previous.family;
+            let personSingleNode = { kind: "person", id: personId, singleParentFamilies: singleParentFamilyNodes, multiParentFamilyNodes: multiParentFamilyNodes };
+            layout[personsLayer[personId]].push({kind:"left-partner", person: left, family:family});
+            layout[personsLayer[personId]].push({kind:"left-partner", person: right, family:partnerFamilyNode});
+            layout[personsLayer[personId]].push(personSingleNode);
+        } else {
+            if (previous != undefined) {
+                layout[personsLayer[personId]].push(previous);
+            }
+            partnerFamilyNode.depth = depth;
+            personSingleNode.multiParentFamilyNodes.push(partnerFamilyNode);
+            let personSingleNode = { kind: "person", id: personId, singleParentFamilies: singleParentFamilyNodes, multiParentFamilyNodes: multiParentFamilyNodes };
+            layout[personsLayer[personId]].push(personSingleNode);
+        }
+    } else {
+        if (previous != undefined) {
+            layout[personsLayer[personId]].push(previous);
+        }
+        let personSingleNode = { kind: "person", id: personId, singleParentFamilies: singleParentFamilyNodes, multiParentFamilyNodes: multiParentFamilyNodes };
+        layout[personsLayer[personId]].push(personSingleNode);
+    }
+    return { layer: personsLayer[personId], position: layout[personsLayer[personId]].length - 1 };
+}
+
+for (let layer of layers) {
+    for (const personId of layer) {
+        if (peopleInLayout.has(personId)) {
+            continue;
+        }
+        pushPeopleIntoLayoutUntilPersonIsPushed(personId);
+        for (const partnerId of partners(personId)) {
+            if (personsLayer[partnerId] != personsLayer[personId]) {
+                continue;
+            }
+            if (peopleInLayout.has(partnerId)) {
+                continue;
+            }
+            pushPeopleIntoLayoutUntilPersonIsPushed(partnerId);
+        }
     }
 }
 
-layers = newLayers;
+console.log(peopleInLayout);
 
 // TODO: Get rid of debug log lines for production version.
-console.log("Final layers:");
-console.log(layers);
+console.log("Final layout:");
+console.log(layout);
 
 // -------------------------- Placing people in correct places on the plane using the layer information and some heuristics --------------------------
 
 let personsPosition = {};
 let familyPosition = {};
 
-let maxX = 0;
-let y = 0;
-for(const layer of layers) {
-    let x = 0;
-    for(const personId of layer) {
-        personsPosition[personId] = {x:x, y:y};
-        x += 100.0;
-        maxX = Math.max(x,maxX);
-    }
-    y += 80.0;
+const spaceBetweenLayers = 70.0;
+const spaceBetweenPeople = 100.0;
+
+function isEmptyFamily(familyNode) {
+    // assert(familyNode.kind == "family")
+    return familyNode.members.length == 0;
 }
+
+function areEmptyFamilyNodes(familyNodes) {
+    for(const familyNode of familyNodes) {
+        if(!isEmptyFamily(familyNode)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// TODO: We need to work on the back fill!
+function calculatePosition(node, boxStart, layer) {
+    if (node.kind == "person" || node.kind == "partner") {
+        console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
+        if (personsPosition[node.id] != null) {
+            console.log("Cached");
+            return boxStart;
+        }
+        let boxEnd = boxStart;
+        let first = true;
+        if(node.multiParentFamilyNodes != null) {
+            for (const multiParentFamilyNodes of node.multiParentFamilyNodes) {
+                boxEnd = Math.max(boxEnd, calculatePosition(multiParentFamilyNodes, boxEnd, layer));
+            }
+        }
+        const actualBoxStart = boxEnd;
+        for (const singleParentFamilyNode of node.singleParentFamilies) {
+            if (first) { first = false; } else { boxEnd += spaceBetweenPeople; }
+            boxEnd = Math.max(boxEnd, calculatePosition(singleParentFamilyNode, boxEnd, layer));
+        }
+        personsPosition[node.id] = { x: (actualBoxStart + boxEnd) / 2, y: layer * spaceBetweenLayers};
+        for (const singleParentFamilyNode of node.singleParentFamilies) {
+            familyPosition[singleParentFamilyNode.id] = personsPosition[node.id];
+    }
+        console.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
+        return boxEnd;
+    } else if (node.kind == "left-partner") {
+        console.log("Calculating position for " + node.kind + " " + node.person.id + " " + boxStart + " on layer " + layer);
+        let boxEnd = calculatePosition(node.person, boxStart, layer);
+        if(!areEmptyFamilyNodes(node.person.singleParentFamilies)) {
+            boxEnd = boxEnd + spaceBetweenPeople;
+        }
+        boxEnd = calculatePosition(node.family, boxEnd, layer);
+        console.log("Done with " + node.kind + " " + node.person.id + " " + boxEnd);
+        return boxEnd;
+    } else if (node.kind == "partners") {
+        console.log("Calculating position for " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxStart + " on layer " + layer);
+        if (personsPosition[node.left.id] != null &&
+            personsPosition[node.right.id] != null) {
+            console.log("Cached");
+            return boxStart;
+        }
+        if (personsPosition[node.left.id] != null) {
+            console.log("Cached partially.");
+            return calculatePosition(node.right, boxStart, layer);
+        }
+        if (personsPosition[node.right.id] != null) {
+            console.log("Cached partially.");
+            return calculatePosition(node.left, boxStart, layer);
+        }
+        let boxEnd = boxStart;
+        let first = true;
+        for (const multiParentFamilyNodes of node.leftFamilyNodes) {
+            if (first) { first = false; } else { boxEnd += spaceBetweenPeople; }
+            boxEnd = Math.max(boxEnd, calculatePosition(multiParentFamilyNodes, boxEnd, layer));
+        }
+        for (const multiParentFamilyNodes of node.rightFamilyNodes) {
+            if (first) { first = false; } else { boxEnd += spaceBetweenPeople; }
+            boxEnd = Math.max(boxEnd, calculatePosition(multiParentFamilyNodes, boxEnd, layer));
+        }
+        const actualBoxStart = boxEnd;
+        boxEnd = calculatePosition(node.left, boxEnd, layer);
+        boxEnd = calculatePosition(node.family, boxEnd, layer);
+        boxEnd = Math.max(boxEnd, boxStart + spaceBetweenPeople);
+        boxEnd = calculatePosition(node.right, boxEnd, layer);
+        personsPosition[node.left.id] = { x: (actualBoxStart + boxEnd) / 2 - spaceBetweenPeople / 2, y: layer * spaceBetweenLayers };
+        personsPosition[node.right.id] = { x: (actualBoxStart + boxEnd) / 2 + spaceBetweenPeople / 2, y: layer * spaceBetweenLayers };
+        familyPosition[node.family.id] = { x: (actualBoxStart + boxEnd) / 2, y: layer * spaceBetweenLayers };
+        console.log("Done with " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxEnd);
+       
+        return boxEnd;
+    } else if (node.kind == "family") {
+        console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
+       
+        if (familyPosition[node.id] != null) {
+            return boxStart;
+        }
+        // TODO: We need to do backfill here first.
+        let boxEnd = boxStart;
+        let first = true;
+        for (const member of node.members) {
+            if (first) { first = false; } else { boxEnd += spaceBetweenPeople; }
+            const memberNode = layout[member.layer][member.position];
+            boxEnd = calculatePosition(memberNode, boxEnd, layer + 1);
+        }
+        familyPosition[node.id] = { x: (boxStart + boxEnd) / 2, y: layer * spaceBetweenLayers + node.depth * 3 };
+        console.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
+        return boxEnd;
+    }
+}
+
+let biggestBoxEnd = 0;
+
+for (let i = 0; i < layout.length; i += 1) {
+    const layoutLayer = layout[i];
+    let boxEnd = 0;
+    let first = true;
+    for (const node of layoutLayer) {
+        if (first) { first = false; } else { boxEnd += spaceBetweenPeople; }
+        boxEnd = calculatePosition(node, boxEnd, i);
+    }
+    biggestBoxEnd = Math.max(boxEnd, biggestBoxEnd);
+}
+
+console.log(personsPosition);
 
 // set the dimensions and margins of the diagram
 const margin = { top: 50, right: 90, bottom: 30, left: 130 },
-    width = maxX + margin.left + margin.right,
-    height = y + margin.top + margin.bottom;
+    width = biggestBoxEnd + margin.left + margin.right,
+    height = layout.length * spaceBetweenLayers + margin.top + margin.bottom;
 
 // TODO: Get rid of output for production
 console.log(layers);
@@ -557,6 +776,7 @@ const partner = g.selectAll(".partner")
     .attr("d", d => {
         const source = personsPosition[d[0]];
         const target = personsPosition[d[1]];
+        console.log("RENDERING: " + d[0] + " " + d[1]);
         return "M" + source.x + "," + source.y
             + " " + target.x + "," + target.y;
     });
