@@ -1,8 +1,8 @@
 import * as model from "./model.js";
 export let personsPosition = {};
 export let familyPosition = {};
-// -------------------------- Laying out people with topological sort and estabilishing constraints --------------------------
 export function recalculate() {
+    // -------------------------- Assigning people to layers --------------------------
     // Algorithm lays out people with layers, starting with people with no parents.
     let peopleWithUnassignedLayer = new Set();
     for (const personId in model.people) {
@@ -10,164 +10,6 @@ export function recalculate() {
     }
     let layers = [];
     let personsLayer = {};
-    let constraints = {};
-    let filledConstraints = new Set();
-    let familyConstraints = {};
-    for (const personId in model.people) {
-        constraints[personId] = {};
-    }
-    for (const familyId in model.families) {
-        familyConstraints[familyId] = {};
-    }
-    // This functions in a union-find manner, compressing the paths as it goes.
-    // TODO: Make this true. So emberassing.
-    function leftmostOf(personId) {
-        if (constraints[personId].leftmost == null ||
-            constraints[personId].leftmost == personId) {
-            return personId;
-        }
-        const result = leftmostOf(constraints[personId].leftmost);
-        constraints[personId].leftmost = result;
-        return result;
-    }
-    function leftmostOfSet(peopleIds) {
-        let currentId = peopleIds[0];
-        while (constraints[currentId].left != null &&
-            peopleIds.includes(constraints[currentId].left)) {
-            currentId = constraints[currentId].left;
-        }
-        return currentId;
-    }
-    function rightmostOfSet(peopleIds) {
-        let currentId = peopleIds[0];
-        while (constraints[currentId].right != null &&
-            peopleIds.includes(constraints[currentId].right)) {
-            currentId = constraints[currentId].right;
-        }
-        return currentId;
-    }
-    function areDirectNeighbours(peopleIds) {
-        if (peopleIds.length <= 1) {
-            return true;
-        }
-        let currentId = leftmostOfSet(peopleIds);
-        let visited = 1;
-        while (visited < peopleIds.length) {
-            if (constraints[currentId].right != null &&
-                peopleIds.includes(constraints[currentId].right)) {
-                visited += 1;
-                currentId = constraints[currentId].right;
-            }
-            else {
-                return false;
-            }
-        }
-        return true;
-    }
-    // Will attempt to add a left constraint between two people in the layout.
-    // Return `false` and doesn't modify anything (except maybe for leftmost) 
-    // if this constraint cannot be added.
-    function addSoftLeftConstraint(aId, bId) {
-        // We assume both aId and bId are on the same layer and that the parents have
-        // already been laid out on the layers above.
-        let aConstraints = constraints[aId];
-        let bConstraints = constraints[bId];
-        // Check if we don't have any existing constraints on any of the nodes.
-        if (aConstraints.left != null || bConstraints.right != null ||
-            (leftmostOf(aId) == leftmostOf(bId))) {
-            // TODO: Erase debug in the production version
-            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
-            return false;
-        }
-        aConstraints.left = bId;
-        bConstraints.right = aId;
-        if (bConstraints.leftmost == null) {
-            bConstraints.leftmost = bId;
-        }
-        aConstraints.leftmost = bConstraints.leftmost;
-        // TODO: Erase debug in the production version
-        console.log(bId + " to the left of " + aId + " is added");
-        return true;
-    }
-    // Will attempt to add a left constraint between two people in the layout
-    // and then it will follow to the parents ensuring the parents also have
-    // the necessary contraints for the people to be drawn without crossing any
-    // lines.
-    // Return `false` and doesn't modify anything (except maybe for leftmost) 
-    // if this constraint cannot be added.
-    function addLeftConstraint(aId, bId) {
-        // We assume both aId and bId are on the same layer and that the parents have
-        // already been laid out on the layers above.
-        const layer = personsLayer[aId];
-        let aConstraints = constraints[aId];
-        let bConstraints = constraints[bId];
-        // Check if we don't have any existing constraints on any of the nodes.
-        if (aConstraints.left != null || bConstraints.right != null ||
-            (leftmostOf(aId) == leftmostOf(bId))) {
-            // TODO: Erase debug in the production version
-            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
-            return false;
-        }
-        const aFamilies = model.childOfFamilies(aId);
-        const bFamilies = model.childOfFamilies(bId);
-        if (aFamilies.length == 1 && bFamilies.length == 1) {
-            const aFamilyId = aFamilies[0];
-            const bFamilyId = bFamilies[0];
-            let aParentIds = model.familyParents(aFamilyId);
-            let bParentIds = model.familyParents(bFamilyId);
-            if (aParentIds.length <= 0 || bParentIds.length <= 0) {
-                return addSoftLeftConstraint(aId, bId);
-            }
-            if (!areDirectNeighbours(aParentIds)) {
-                return false;
-            }
-            if (!areDirectNeighbours(bParentIds)) {
-                return false;
-            }
-            // Follow the left ascendant for node a.
-            let aLeftParentId = leftmostOfSet(aParentIds);
-            // Follow the right ascendant for node b.
-            let bRightParentId = rightmostOfSet(bParentIds);
-            // They must be on the same layer
-            if (personsLayer[aLeftParentId] != personsLayer[bRightParentId]) {
-                // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because thier parents are in different layers");
-                return false;
-            }
-            // We will need to draw the single parented children somewhere
-            if (aParentIds.length > 1 && model.isSingleParent(aLeftParentId)) {
-                // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because " + aLeftParentId + " is a single parent");
-                return false;
-            }
-            // We will need to draw the single parented children somewhere
-            if (bParentIds.length > 1 && model.isSingleParent(bRightParentId)) {
-                // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because " + bRightParentId + " is a single parent");
-                return false;
-            }
-            if (familyConstraints[aFamilyId].leftmostChild != null) {
-                // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because of the " + aId + " left parent " + aLeftParentId);
-                return false;
-            }
-            if (familyConstraints[bFamilyId].rightmostChild != null) {
-                // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because of the " + bId + " right parent " + bRightParentId);
-                return false;
-            }
-            // Check if we can add a constraint between the ascendants. If yes, then we can add a constraint here as well.
-            if (!addLeftConstraint(aLeftParentId, bRightParentId)) {
-                // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because the parents " + aLeftParentId + " and " + bRightParentId + " can't be joined.");
-                return false;
-            }
-            familyConstraints[aFamilyId].leftmostChild = aId;
-            familyConstraints[bFamilyId].rightmostChild = bId;
-            constraints[aId].leftmostChildWithPartner = true;
-        }
-        return addSoftLeftConstraint(aId, bId);
-    }
     while (peopleWithUnassignedLayer.size > 0) {
         let considered = new Set();
         // Get people that are not yet laid out, but for whose
@@ -207,15 +49,6 @@ export function recalculate() {
                     }
                 }
             }
-            // Same for siblings
-            for (const id of considered) {
-                for (const siblingId of model.siblings(id)) {
-                    if (peopleWithUnassignedLayer.has(siblingId) && !considered.has(siblingId)) {
-                        changed = considered.delete(id) || changed;
-                        break;
-                    }
-                }
-            }
         }
         // considered now contains all the people that will appear in this layer.
         // Now attempt to create a layer out of those people, possibly adding constraints to layers above.
@@ -227,8 +60,177 @@ export function recalculate() {
         }
         // TODO: Sort by age.
         layer.sort((a, b) => a - b);
+        layers.push(layer);
+    }
+    console.log("Layer assignment:");
+    console.log(layers);
+    // -------------------------- Calculating constraints between people --------------------------
+    // The resulting form doubly linked lists, with left and right pointers, indicating the left and right neighbours
+    // of each node.
+    // `leftmost` ensures there is no cycle.
+    // Note, that this is based on pure heuristics and the output of this has no additional invariants.
+    // (i.e. whatever the output of this step, the final graph should still look more or less decent)
+    let constraints = {};
+    let filledConstraints = new Set();
+    let familyConstraints = {};
+    for (const personId in model.people) {
+        constraints[personId] = {};
+    }
+    for (const familyId in model.families) {
+        familyConstraints[familyId] = {};
+    }
+    // This functions in a union-find manner, compressing the paths as it goes.
+    function leftmostOf(personId) {
+        if (constraints[personId].leftmost == null ||
+            constraints[personId].leftmost == personId) {
+            return personId;
+        }
+        const result = leftmostOf(constraints[personId].leftmost);
+        constraints[personId].leftmost = result;
+        return result;
+    }
+    function leftmostOfSet(peopleIds) {
+        // assert(areDirectNeighbours(peopleIds));
+        let currentId = peopleIds[0];
+        while (constraints[currentId].left != null &&
+            peopleIds.includes(constraints[currentId].left)) {
+            currentId = constraints[currentId].left;
+        }
+        return currentId;
+    }
+    function rightmostOfSet(peopleIds) {
+        // assert(areDirectNeighbours(peopleIds));
+        let currentId = peopleIds[0];
+        while (constraints[currentId].right != null &&
+            peopleIds.includes(constraints[currentId].right)) {
+            currentId = constraints[currentId].right;
+        }
+        return currentId;
+    }
+    function areDirectNeighbours(peopleIds) {
+        if (peopleIds.length <= 1) {
+            return true;
+        }
+        let currentId = leftmostOfSet(peopleIds);
+        let visited = 1;
+        while (visited < peopleIds.length) {
+            if (constraints[currentId].right != null &&
+                peopleIds.includes(constraints[currentId].right)) {
+                visited += 1;
+                currentId = constraints[currentId].right;
+            }
+            else {
+                return false;
+            }
+        }
+        return true;
+    }
+    let dependentOnFamilies = {};
+    for (const personId in model.people) {
+        dependentOnFamilies[personId] = model.childOfFamilies(+personId).filter((familyId) => model.familyParents(familyId).length > 0);
+    }
+    // Will attempt to add a left constraint between two people in the layout.
+    // Return `false` and doesn't modify anything (except maybe for leftmost) 
+    // if this constraint cannot be added.
+    function addSoftLeftConstraint(aId, bId) {
+        // We assume both aId and bId are on the same layer and that the parents have
+        // already been laid out on the layers above.
+        let aConstraints = constraints[aId];
+        let bConstraints = constraints[bId];
+        // Check if we don't have any existing constraints on any of the nodes.
+        if (aConstraints.left != null || bConstraints.right != null ||
+            (leftmostOf(aId) == leftmostOf(bId))) {
+            // TODO: Erase debug in the production version
+            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
+            return false;
+        }
+        aConstraints.left = bId;
+        bConstraints.right = aId;
+        if (bConstraints.leftmost == null) {
+            bConstraints.leftmost = bId;
+        }
+        aConstraints.leftmost = bConstraints.leftmost;
+        let mutualDependentFamilies = dependentOnFamilies[aId].concat(dependentOnFamilies[bId]);
+        dependentOnFamilies[aId] = mutualDependentFamilies;
+        dependentOnFamilies[bId] = mutualDependentFamilies;
+        // TODO: Erase debug in the production version
+        console.log(bId + " to the left of " + aId + " is added");
+        return true;
+    }
+    // Will attempt to add a left constraint between two people in the layout
+    // and then it will follow to the parents ensuring the parents also have
+    // the necessary contraints for the people to be drawn without crossing any
+    // lines.
+    // Return `false` and doesn't modify anything (except maybe for leftmost) 
+    // if this constraint cannot be added.
+    function addLeftConstraint(aId, bId) {
+        // We assume both aId and bId are on the same layer and that the parents have
+        // already been laid out on the layers above.
+        const layer = personsLayer[aId];
+        let aConstraints = constraints[aId];
+        let bConstraints = constraints[bId];
+        // Check if we don't have any existing constraints on any of the nodes.
+        if (aConstraints.left != null || bConstraints.right != null ||
+            (leftmostOf(aId) == leftmostOf(bId))) {
+            // TODO: Erase debug in the production version
+            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
+            return false;
+        }
+        const aFamilies = dependentOnFamilies[aId];
+        const bFamilies = dependentOnFamilies[bId];
+        if (aFamilies.length > 0 && bFamilies.length > 0) {
+            let aPotentialFamilies = aFamilies.filter((familyId) => areDirectNeighbours(model.familyParents(familyId)) && familyConstraints[familyId].leftmostChild == undefined);
+            let bPotentialFamilies = bFamilies.filter((familyId) => areDirectNeighbours(model.familyParents(familyId)) && familyConstraints[familyId].rightmostChild == undefined);
+            if (aPotentialFamilies.length == 0 ||
+                bPotentialFamilies.length == 0) {
+                return false;
+            }
+            // Arbitrarly pick the first family that we can attach the child as leftmost/rightmost.
+            const aFamilyId = aPotentialFamilies[0];
+            const bFamilyId = bPotentialFamilies[0];
+            let aParentIds = model.familyParents(aFamilyId);
+            let bParentIds = model.familyParents(bFamilyId);
+            // Follow the left ascendant for node a.
+            let aLeftParentId = leftmostOfSet(aParentIds);
+            // Follow the right ascendant for node b.
+            let bRightParentId = rightmostOfSet(bParentIds);
+            // They must be on the same layer
+            if (personsLayer[aLeftParentId] != personsLayer[bRightParentId]) {
+                // TODO: Erase debug in the production version
+                console.log(bId + " to the left of " + aId + " is not possible because thier parents are in different layers");
+                return false;
+            }
+            // We will need to draw the single parented children somewhere
+            if (aParentIds.length > 1 && model.isSingleParent(aLeftParentId)) {
+                // TODO: Erase debug in the production version
+                console.log(bId + " to the left of " + aId + " is not possible because " + aLeftParentId + " is a single parent");
+                return false;
+            }
+            // We will need to draw the single parented children somewhere
+            if (bParentIds.length > 1 && model.isSingleParent(bRightParentId)) {
+                // TODO: Erase debug in the production version
+                console.log(bId + " to the left of " + aId + " is not possible because " + bRightParentId + " is a single parent");
+                return false;
+            }
+            // Check if we can add a constraint between the ascendants. If yes, then we can add a constraint here as well.
+            if (!addLeftConstraint(aLeftParentId, bRightParentId)) {
+                // TODO: Erase debug in the production version
+                console.log(bId + " to the left of " + aId + " is not possible because the parents " + aLeftParentId + " and " + bRightParentId + " can't be joined.");
+                return false;
+            }
+            familyConstraints[aFamilyId].leftmostChild = aId;
+            familyConstraints[bFamilyId].rightmostChild = bId;
+            constraints[aId].leftmostChildWithPartner = true;
+        }
+        return addSoftLeftConstraint(aId, bId);
+    }
+    for (const layer of layers) {
+        // Finding constraints for people within the layer
         for (const id of layer) {
             for (const partnerId of model.partners(id)) {
+                if (personsLayer[partnerId] != personsLayer[id]) {
+                    continue;
+                }
                 // So that we consider the constraints only once.
                 const constraint = "" + Math.min(id, partnerId) + "-" + Math.max(id, partnerId);
                 if (filledConstraints.has(constraint)) {
@@ -244,14 +246,7 @@ export function recalculate() {
                 }
             }
         }
-        layers.push(layer);
     }
-    console.log("Initial layers:");
-    console.log(layers);
-    console.log("People constraints:");
-    console.log(constraints);
-    console.log("Family constraints:");
-    console.log(familyConstraints);
     let layout = [];
     for (const _layer of layers) {
         layout.push([]);
@@ -327,7 +322,7 @@ export function recalculate() {
         // We use different heuristics depending on what we've done previously and what
         // is the family structure of families, whose last parent is just being laid out
         const previous = layout[personsLayer[personId]].slice(-1)[0];
-        let familiesClassification = { 0: [], 1: [], 2: [], ">2": [] };
+        let familiesClassification = { 1: [], 2: [], ">2": [] };
         for (const familyId of familiesCompletedByCurrent) {
             let parentCount = model.familyParents(familyId).length;
             if (parentCount <= 2) {
@@ -366,8 +361,7 @@ export function recalculate() {
             let pushed = pushFamilyChildrenIntoLayout(partnerFamilyId);
             let partnerFamilyNode = { kind: "family", id: partnerFamilyId, depth: 0, members: pushed };
             if (previous.kind == "person" &&
-                (constraints[personId].leftmostChildWithPartner == undefined ||
-                    constraints[personId].leftmostChildWithPartner == true)) {
+                constraints[personId].leftmostChildWithPartner != undefined) {
                 // TODO: The last thing. Treat cross family partners differently.
                 // So that we can avoid the spacing between them and we can render them better.
                 layout[personsLayer[personId]].pop();
@@ -380,9 +374,7 @@ export function recalculate() {
                 layout[personsLayer[personId]].push({ kind: "left-partner", person: previous, family: partnerFamilyNode });
                 layout[personsLayer[personId]].push({ kind: "person", id: personId, singleParentFamilies: singleParentFamilyNodes, leftPartner: { personId: previous.id, familyId: partnerFamilyId } });
             }
-            else if (previous.kind == "person" &&
-                constraints[personId].leftmostChildWithPartner != true &&
-                constraints[personId].left == previousPersonIdOrNull) {
+            else if (previous.kind == "person") {
                 layout[personsLayer[personId]].pop();
                 const leftPartner = { kind: "person", id: previous.id, singleParentFamilies: previous.singleParentFamilies };
                 const rightPartner = { kind: "person", id: personId, singleParentFamilies: singleParentFamilyNodes };
@@ -456,8 +448,8 @@ export function recalculate() {
     for (const _layer of layout) {
         layerBox.push(0);
     }
-    const spaceBetweenLayers = 70.0;
-    const spaceBetweenPeople = 100.0;
+    const spaceBetweenLayers = 90.0;
+    const spaceBetweenPeople = 110.0;
     function isEmptyFamily(familyNode) {
         return familyNode.members.length == 0;
     }
@@ -568,7 +560,7 @@ export function recalculate() {
             return boxEnd;
         }
         else if (node.kind == "family") {
-            console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
+            console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer + " depth " + node.depth);
             if (familyPosition[node.id] != null) {
                 return boxStart;
             }

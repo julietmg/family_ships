@@ -1,4 +1,5 @@
 import * as d3 from "d3";
+// import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
 // Replace "d3" with CDN version "https://cdn.jsdelivr.net/npm/d3@7/+esm" for the web version.
@@ -8,8 +9,8 @@ layout.recalculate();
 
 // set the dimensions and margins of the diagram
 const margin = { top: 50, right: 90, bottom: 30, left: 130 },
-    width = 1000 + margin.left + margin.right,
-    height = 800 + margin.top + margin.bottom;
+    width = 3000 + margin.left + margin.right,
+    height = 2000 + margin.top + margin.bottom;
 
 // TODO: Infinite scrollable space.
 // TODO: Elbows and symbols.
@@ -40,7 +41,7 @@ const partner = g.selectAll(".partner")
     .data(parentLinks)
     .enter().append("path")
     .attr("class", "link")
-    .style("stroke", () => "blue")
+    .style("stroke", () => "grey")
     .attr("d", (d: Array<number>) => {
         const source = layout.personsPosition[d[0]];
         const target = layout.familyPosition[d[1]];
@@ -128,10 +129,16 @@ const family = g.selectAll(".family")
 
 // adds the circle to the family
 family.append("circle")
-    .attr("r", () => 5)
-    .style("stroke", () => "red")
-    .style("fill", () => "red");
+    .attr("r", () => 12)
+    .style("stroke", () => "white")
+    .style("fill", () => "white");
 
+family.append("image")
+    .attr("xlink:href", "heart.svg")
+    .attr("x", () => -5)
+    .attr("y", () => -5)
+    .attr("width", () => 10)
+    .attr("height", () => 10)
 
 let personNodes: Array<number> = [];
 for (const personId in model.people) {
@@ -150,24 +157,24 @@ const person = g.selectAll(".person")
 
     ;
 
-// adds the circle to the person
-person.append("circle")
-    .attr("r", () => 15)
-    .style("stroke", () => "black")
-    .style("fill", () => "grey")
+person.append("rect")
+    .attr("width", () => 80)
+    .attr("height", () => 40)
+    .attr("x", () => -40)
+    .attr("y", () => -20)
+    .style("stroke", () => "white")
+    .style("fill", () => "white")
     .on("click", function (_event: any, d) {
         console.log("Clicked on circle of " + d);
     });
 
 // adds the text to the person
 person.append("text")
-    .attr("name", "textInput")
-    .attr("dy", ".35em")
-    .attr("x", () => (15 + 5) * -1)
-    .attr("y", () => -(15 + 5))
     .style("text-anchor",
-        () => "end")
+        () => "middle")
     .text((d) => model.people[+d].formattedNames + " " + d)
+    .style("font-size", "20px")
+    .attr("font-family", "Dancing Script")
     .on("click", function (_event: any, d) {
         // TODO: Erase debug in the production version
         console.log("Info about person: " + d);
