@@ -57,12 +57,12 @@ public class ModelController {
 
     // TODO: Allow for updating the data about the person.
     @PostMapping("/model/new_person")
-    public String newPerson(@RequestParam String name, Principal principal) {
+    public Integer newPerson(@RequestParam String name, Principal principal) {
         // TODO: Authorization
         Person person = new Person();
         person.setNames(Collections.singleton(name));
         personRepository.save(person);
-        return name + " added with id " + person.getId();
+        return person.getId();
     }
 
     @PostMapping("/model/delete_person")

@@ -34,3 +34,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Typescript stuff ###
+node_modules
+
