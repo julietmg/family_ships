@@ -1,18 +1,59 @@
 import * as d3 from "d3";
 // import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+import * as tools from "./tools.js";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
-// Replace "d3" with CDN version "https://cdn.jsdelivr.net/npm/d3@7/+esm" for the web version.
 
 
-// set the dimensions and margins of the diagram
+// TODO: Add a lock, which will hide all the functional buttons.
+
+// Showcase the icons that we have in the debug mode.
+if (tools.debug()) {
+    function showDebugIcon(path: string) {
+        const iconSvg = d3.select("body").append("svg")
+            .attr("width", 200)
+            .attr("height", 100);
+
+        const g = iconSvg.append("g")
+            .attr("transform",
+                "translate(" + 20 + "," + 20 + ")")
+        g.append("text").text(path);
+        g.append("image")
+            .attr("xlink:href", path)
+            .attr("x", () => 10)
+            .attr("y", () => 10)
+            .attr("width", () => 30)
+            .attr("height", () => 30);
+    }
+    showDebugIcon("icons/add_person.svg");
+    showDebugIcon("icons/delete_person.svg");
+    showDebugIcon("icons/delete.svg");
+    showDebugIcon("icons/heart_minus.svg");
+    showDebugIcon("icons/heart.svg");
+    showDebugIcon("icons/person_off.svg");
+}
+
+// -------------------------- Add new person button --------------------------
+
+const addPersonSvg = d3.select("body").append("svg")
+    .attr("width", 100)
+    .attr("height", 100).append("g").append("image")
+    .attr("xlink:href", "icons/add_person.svg")
+    .attr("x", () => 10)
+    .attr("y", () => 10)
+    .attr("width", () => 80)
+    .attr("height", () => 80)
+    .on("click", (event, d) => {
+        const newPersonId = model.newPerson("Name");
+        tools.log("Added a new person " + newPersonId);
+        updateAll();
+    });
+
 const margin = { top: 50, right: 90, bottom: 30, left: 130 },
     width = 10000 + margin.left + margin.right,
     height = 10000 + margin.top + margin.bottom;
 
-// append the svg object to the body of the page
-// appends a 'group' element to 'svg'
-// moves the 'group' element to the top left margin
 const svg = d3.select("body").append("svg")
     .attr("width", width + margin.left + margin.right)
     .attr("height", height + margin.top + margin.bottom),
@@ -60,7 +101,7 @@ async function familyClicked(d: number) {
     // And preferably do it smoothly.
     // Also, block all the input for that period.
     // It's annoying, but it would work.
-    console.log("Adding a child to " + d);
+    tools.log("Adding a child to " + d);
     let newPersonId = await fetch('/model/new_person', {
         method: 'POST',
         headers: {
@@ -71,8 +112,8 @@ async function familyClicked(d: number) {
         })
     }).then(data => data.json());
 
-    console.log(newPersonId);
-    let addingChildResult = await fetch('/model/new_family_child', {
+    tools.log(newPersonId);
+    let addingChildResult = await fetch('/model/attach_child', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
@@ -82,71 +123,127 @@ async function familyClicked(d: number) {
             'childId': newPersonId
         })
     });
-    console.log("Done");
+    tools.log("Done");
     updateAll();
-    console.log("Updating");
-    console.log("DOZNO");
+    tools.log("Updating");
+    tools.log("DOZNO");
 }
 
 function personClicked(d: number) {
     // TODO: Erase debug in the production version
-    console.log("Info about person: " + d);
-    console.log(model.people[+d]);
-    console.log("Parents:");
-    console.log(model.parents(+d));
-    console.log("Children:");
-    console.log(model.children(+d));
-    console.log("partners:");
-    console.log(model.partners(+d));
-    console.log("Siblings:");
-    console.log(model.siblings(+d));
-    console.log("Parent of families:");
-    console.log(model.parentOfFamilies(+d));
-    console.log("Child of families:");
-    console.log(model.childOfFamilies(+d));
-    console.log("Position:");
-    console.log(layout.personsPosition[+d]);
+    tools.log("Info about person: " + d);
+    tools.log(model.people[+d]);
+    tools.log("Parents:");
+    tools.log(model.parents(+d));
+    tools.log("Children:");
+    tools.log(model.children(+d));
+    tools.log("partners:");
+    tools.log(model.partners(+d));
+    tools.log("Siblings:");
+    tools.log(model.siblings(+d));
+    tools.log("Parent of families:");
+    tools.log(model.parentOfFamilies(+d));
+    tools.log("Child of families:");
+    tools.log(model.childOfFamilies(+d));
+    tools.log("Position:");
+    tools.log(layout.personsPosition[+d]);
 }
 
+const personBoxSize = { width: 150, height: 80 };
+
 function updateGraphics() {
+    const deleteIconSize = { width: 15, height: 15 };
+    const distanceFromPerson = 15;
+
+    // TODO: Have some functions here.
+
     g.selectAll(".parent").data(parentLinks, (link: Array<number>) => link[0] + "parent" + link[1])
         .join(
             enter => {
-                let parentLinkHook = enter.append("path").attr("class", () => "parent");
-                parentLinkHook.style("stroke", () => "grey").style("fill", () => "none");
-                parentLinkHook.attr("d", (d: Array<number>) => {
+                // -------------------------- Drawing initial parent path --------------------------
+                let parentLinkHook = enter.append("g").attr("class", () => "parent");
+                let parentPath = parentLinkHook.append("path");
+                parentPath.style("stroke", () => "grey").style("fill", () => "none");
+                parentPath.attr("d", (d: Array<number>) => {
                     const source = layout.familyPosition[d[1]];
                     const target = layout.personsPosition[d[0]];
                     return d3.line()([[source.x, source.y],
                     [target.x, source.y],
                     [target.x, target.y]]);
                 }).attr("stroke-dasharray", (d: Array<number>) => {
-                        const source = layout.familyPosition[d[1]];
-                        const target = layout.personsPosition[d[0]];
-                        const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
-                        return lineLength + " " + lineLength;
+                    const source = layout.familyPosition[d[1]];
+                    const target = layout.personsPosition[d[0]];
+                    const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
+                    return lineLength + " " + lineLength;
                 }).attr("stroke-dashoffset", (d: Array<number>) => {
+                    const source = layout.familyPosition[d[1]];
+                    const target = layout.personsPosition[d[0]];
+                    const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
+                    return lineLength;
+                });
+
+                // -------------------------- Deleted parent link button --------------------------
+
+                parentLinkHook.append("image")
+                    .attr("xlink:href", "icons/delete.svg")
+                    .attr("x", (d) => {
                         const source = layout.familyPosition[d[1]];
                         const target = layout.personsPosition[d[0]];
-                        const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
-                        return lineLength;
-                });
+                        if (target.y == source.y) {
+                            return +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + distanceFromPerson) - deleteIconSize.width / 2;
+                        }
+                        return target.x;
+                    })
+                    .attr("y", (d) => {
+                        const source = layout.familyPosition[d[1]];
+                        const target = layout.personsPosition[d[0]];
+                        if (target.y == source.y) {
+                            return target.y - deleteIconSize.height / 2;
+                        }
+                        return target.y + (personBoxSize.height / 2 + distanceFromPerson) - deleteIconSize.height / 2;
+                    })
+                    .attr("width", () => deleteIconSize.width)
+                    .attr("height", () => deleteIconSize.height)
+                    .on("click", async (event, d) => {
+                        await model.detachParent(d[1], d[0]);
+                        await updateAll();
+                    }
+                    );
                 return parentLinkHook;
             },
-            update => update.transition().attr("d", (d: Array<number>) => {
-                const source = layout.familyPosition[d[1]];
-                const target = layout.personsPosition[d[0]];
-                return d3.line()([[source.x, source.y],
-                [target.x, source.y],
-                [target.x, target.y]]);
-            }).attr("stroke-dasharray", (d: Array<number>) => {
-                const source = layout.familyPosition[d[1]];
-                const target = layout.personsPosition[d[0]];
-                const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
-                return lineLength + " " + lineLength;
-            }).attr("stroke-dashoffset", (d: Array<number>) => {
-                return 0;
-            }),
+            update => {
+                update.select("path").transition().attr("d", (d: Array<number>) => {
+                    const source = layout.familyPosition[d[1]];
+                    const target = layout.personsPosition[d[0]];
+                    return d3.line()([[source.x, source.y],
+                    [target.x, source.y],
+                    [target.x, target.y]]);
+                }).attr("stroke-dasharray", (d: Array<number>) => {
+                    const source = layout.familyPosition[d[1]];
+                    const target = layout.personsPosition[d[0]];
+                    const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
+                    return lineLength + " " + lineLength;
+                }).attr("stroke-dashoffset", (d: Array<number>) => {
+                    return 0;
+                })
+                update.select("image").transition().attr("x", (d) => {
+                    const source = layout.familyPosition[d[1]];
+                    const target = layout.personsPosition[d[0]];
+                    if (target.y == source.y) {
+                        return +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + distanceFromPerson) - deleteIconSize.width / 2;
+                    }
+                    return target.x;
+                })
+                    .attr("y", (d) => {
+                        const source = layout.familyPosition[d[1]];
+                        const target = layout.personsPosition[d[0]];
+                        if (target.y == source.y) {
+                            return target.y - deleteIconSize.height / 2;
+                        }
+                        return target.y + (personBoxSize.height / 2 + distanceFromPerson) - deleteIconSize.height / 2;
+                    })
+                return update;
+            },
             exit => exit.remove()
         );
 
@@ -205,17 +302,23 @@ function updateGraphics() {
                 let familyHook = enter.append("g").attr("class", () => "family");
                 familyHook
                     .append("circle")
-                    .attr("r", () => 12)
+                    .attr("r", () => 25)
                     .style("stroke", () => "white")
                     .style("fill", () => "white");
-                familyHook.append("image")
-                    .attr("xlink:href", "heart.svg")
-                    .attr("x", () => -5)
-                    .attr("y", () => -5)
-                    .attr("width", () => 10)
-                    .attr("height", () => 10)
-                    .on("click", async function (_event: any, d) {
-                    });
+                if (tools.debug()) {
+                    familyHook.append("text").text((d: number) => d);
+                }
+                else {
+                    familyHook.append("image")
+                        .attr("xlink:href", "heart.svg")
+                        .attr("x", () => -10)
+                        .attr("y", () => -10)
+                        .attr("width", () => 20)
+                        .attr("height", () => 20)
+                        .on("click", async function (_event: any, d) {
+                        });
+                }
+
                 familyHook.on("click", (_event: any, d: any) => familyClicked(d));
                 familyHook.attr("transform", (d) => {
                     return "translate(" + layout.familyPosition[+d].x + "," + layout.familyPosition[+d].y + ")"
@@ -235,17 +338,22 @@ function updateGraphics() {
                     .attr("class", () => "person");
                 personHook
                     .append("rect")
-                    .attr("width", () => 80)
-                    .attr("height", () => 40)
-                    .attr("x", () => -40)
-                    .attr("y", () => -20)
+                    .attr("width", () => personBoxSize.width)
+                    .attr("height", () => personBoxSize.height)
+                    .attr("x", () => -personBoxSize.width / 2)
+                    .attr("y", () => -personBoxSize.height / 2)
                     .style("stroke", () => "white")
                     .style("fill", () => "white");
                 personHook.append("text")
                     .style("text-anchor",
                         () => "middle")
-                    .text((d: any) => model.people[+d].formattedNames + " " + d)
-                    .style("font-size", "20px")
+                    .text((d: any) => {
+                        if (tools.debug()) {
+                            return d;
+                        }
+                        return model.people[+d].names[0];
+                    })
+                    .style("font-size", "24px")
                     .attr("font-family", "Dancing Script");
                 personHook.on("click", (_event: any, d: any) => personClicked(d));
                 personHook.attr("transform", (d: number) => {

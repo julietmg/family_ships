@@ -1,9 +1,9 @@
-// -------------------------- Fetching the data and packing into nice structures --------------------------
+import * as tools from "./tools.js";
 export let families = {};
 export let people = {};
 export async function reload() {
-    const peopleData = await fetch("/model/debug/people").then(data => data.json());
-    const familiesData = await fetch("/model/debug/families").then(data => data.json());
+    const peopleData = await fetch("/model/people").then(data => data.json());
+    const familiesData = await fetch("/model/families").then(data => data.json());
     families = {};
     people = {};
     for (const family of familiesData) {
@@ -13,23 +13,124 @@ export async function reload() {
         people[person.id] = person;
     }
     // TODO: Erase debug in the production version
-    console.log("Reloaded model data.");
-    console.log(families);
-    console.log(people);
+    tools.log("Reloaded model data.");
+    tools.log(families);
+    tools.log(people);
+}
+export async function newPerson(spaceSeparatedNames) {
+    return await fetch("/model/new_person", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'spaceSeparatedNames': spaceSeparatedNames,
+        })
+    }).then(data => data.json());
+}
+export async function deletePerson(personId) {
+    return await fetch("/model/delete_person", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'personId': "" + personId,
+        })
+    }).then(data => data.json());
+}
+export async function newFamily() {
+    return await fetch("/model/new_family", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({})
+    }).then(data => data.json());
+}
+export async function deleteFamily(familyId) {
+    return await fetch("/model/delete_family", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'familyId': "" + familyId,
+        })
+    }).then(data => data.json());
+}
+export async function attachChild(familyId, childId) {
+    return await fetch("/model/attach_child", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'familyId': "" + familyId,
+            'childId': "" + childId,
+        })
+    }).then(data => data.json());
+}
+export async function detachChild(familyId, childId) {
+    return await fetch("/model/detach_child", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'familyId': "" + familyId,
+            'childId': "" + childId,
+        })
+    }).then(data => data.json());
+}
+export async function attachParent(familyId, parentId) {
+    return await fetch("/model/attach_parent", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'familyId': "" + familyId,
+            'parentId': "" + parentId,
+        })
+    }).then(data => data.json());
+}
+export async function detachParent(familyId, parentId) {
+    return await fetch("/model/detach_parent", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'familyId': "" + familyId,
+            'parentId': "" + parentId,
+        })
+    }).then(data => data.json());
+}
+export async function setNames(personId, spaceSeparatedNames) {
+    return await fetch("/model/detach_parent", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            'personId': "" + personId,
+            'spaceSeparatedNames': "" + spaceSeparatedNames,
+        })
+    }).then(data => data.json());
 }
 // -------------------------- Utility functions to access the data prepared in the section above --------------------------
 export function familyChildren(familyId) {
-    return families[familyId].children.map((x) => x.id.childId);
+    return families[familyId].childrenIds;
 }
 export function familyParents(familyId) {
-    return families[familyId].parents.map((x) => x.id.parentId);
+    return families[familyId].parentIds;
 }
 // TODO: Sort everything by age.
 export function parents(personId) {
     let result = [];
     const person = people[personId];
-    for (const familyChild of person.childOfFamily) {
-        const familyId = familyChild.id.familyId;
+    for (const familyId of person.childOfFamiliesIds) {
         for (const parentId of familyParents(familyId)) {
             result.push(parentId);
         }
@@ -41,8 +142,7 @@ export function parents(personId) {
 export function siblings(personId) {
     let result = [];
     const person = people[personId];
-    for (const familyChild of person.childOfFamily) {
-        const familyId = familyChild.id.familyId;
+    for (const familyId of person.childOfFamiliesIds) {
         for (const siblingId of familyChildren(familyId)) {
             if (siblingId != personId) {
                 result.push(siblingId);
@@ -56,8 +156,7 @@ export function siblings(personId) {
 export function partners(personId) {
     let result = [];
     const person = people[personId];
-    for (const familyParent of person.parentOfFamily) {
-        const familyId = familyParent.id.familyId;
+    for (const familyId of person.parentOfFamilyIds) {
         for (const parentId of familyParents(familyId)) {
             if (parentId != personId) {
                 result.push(parentId);
@@ -71,8 +170,7 @@ export function partners(personId) {
 export function children(personId) {
     let result = [];
     const person = people[personId];
-    for (const familyParent of person.parentOfFamily) {
-        const familyId = familyParent.id.familyId;
+    for (const familyId of person.parentOfFamilyIds) {
         for (const childId of familyChildren(familyId)) {
             result.push(childId);
         }
@@ -84,8 +182,7 @@ export function children(personId) {
 export function parentOfFamilies(personId) {
     let result = [];
     const person = people[personId];
-    for (const familyParent of person.parentOfFamily) {
-        const familyId = familyParent.id.familyId;
+    for (const familyId of person.parentOfFamilyIds) {
         result.push(familyId);
     }
     result.sort((a, b) => a - b);
@@ -94,8 +191,7 @@ export function parentOfFamilies(personId) {
 export function childOfFamilies(personId) {
     let result = [];
     const person = people[personId];
-    for (const familyChild of person.childOfFamily) {
-        const familyId = familyChild.id.familyId;
+    for (const familyId of person.childOfFamiliesIds) {
         result.push(familyId);
     }
     result.sort((a, b) => a - b);
