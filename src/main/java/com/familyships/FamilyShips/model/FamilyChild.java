@@ -13,18 +13,25 @@ public class FamilyChild {
 
   @EmbeddedId
   private FamilyChildKey id;
-  
+
   @ManyToOne
   @MapsId("familyId")
   @JoinColumn(name = "family_id")
-    @JsonBackReference
+  @JsonBackReference
   private Family family;
 
   @ManyToOne
   @MapsId("childId")
   @JoinColumn(name = "child_id")
-    @JsonBackReference
+  @JsonBackReference
   private Person child;
+
+  public FamilyChild() {
+  }
+
+  public FamilyChild(FamilyChildKey id) {
+    this.id = id;
+  }
 
   public FamilyChildKey getId() {
     return id;

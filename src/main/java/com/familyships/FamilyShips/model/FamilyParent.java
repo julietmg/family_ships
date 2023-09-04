@@ -25,6 +25,13 @@ public class FamilyParent {
   @JoinColumn(name = "parent_id")
   private Person parent;
 
+  public FamilyParent() {
+  }
+
+  public FamilyParent(FamilyParentKey id) {
+    this.id = id;
+  }
+
   // TODO: Represent all of:
   // * XY chromosome parent
   // * XX chromosome parent

@@ -53,7 +53,7 @@ public class ModelControllerTests {
                 .with(SecurityMockMvcRequestPostProcessors.user("Julia")))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
-        verify(personRepository).save(argThat(p -> p.getFormattedNames().equals("Robert")));
+        verify(personRepository).save(argThat(p -> p.getNames().toArray()[0].equals("Robert")));
     }
 
 }

@@ -1,7 +1,9 @@
 package com.familyships.FamilyShips.model;
 
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.persistence.Entity;
@@ -33,6 +35,7 @@ public class Family {
         this.id = id;
     }
 
+    @JsonIgnore
     public Set<FamilyParent> getParents() {
         return parents;
     }
@@ -41,12 +44,24 @@ public class Family {
         this.parents = parents;
     }
 
+
+    @JsonIgnore
     public Set<FamilyChild> getChildren() {
         return children;
     }
 
     public void setChildren(Set<FamilyChild> children) {
         this.children = children;
+    }
+
+    public Set<Integer> getChildrenIds() {
+        return children.stream().map((family_child) -> family_child.getChild().getId())
+                .collect(Collectors.toSet());
+    }
+
+    public Set<Integer> getParentIds() {
+        return parents.stream().map((family_parent) -> family_parent.getParent().getId())
+                .collect(Collectors.toSet());
     }
 
     @Override

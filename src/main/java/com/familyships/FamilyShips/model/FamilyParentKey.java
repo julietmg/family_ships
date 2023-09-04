@@ -16,6 +16,13 @@ public class FamilyParentKey implements Serializable {
     @Column(name = "parent_id")
     private Integer parentId;
 
+    public FamilyParentKey() {}
+
+    public FamilyParentKey(Integer familyId, Integer parentId) {
+        this.familyId = familyId;
+        this.parentId = parentId;
+    }
+
     public Integer getFamilyId() {
         return familyId;
     }

@@ -2,6 +2,7 @@ package com.familyships.FamilyShips;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -35,9 +36,11 @@ public class ModelController {
     @Autowired
     private FamilyParentRepository familyParentRepository;
 
-    // TODO: Get rid of debug endpoints in the production version
-    @GetMapping("/model/debug/people")
-    public List<Person> people() {
+    // /model/people
+    // Input: Nothing
+    // Output: personId,names,parentOfFamilies,childOfFamilies
+    @GetMapping("/model/people")
+    public @ResponseBody List<Person> people() {
         List<Person> result = new ArrayList<Person>();
         for (Person person : personRepository.findAll()) {
             result.add(person);
@@ -45,9 +48,11 @@ public class ModelController {
         return result;
     }
 
-    // TODO: Get rid of debug endpoints in the production version
-    @GetMapping("/model/debug/families")
-    public List<Family> families() {
+    // /model/families
+    // Input: Nothing
+    // Output: familyId,children,parents
+    @GetMapping("/model/families")
+    public @ResponseBody List<Family> families() {
         List<Family> result = new ArrayList<Family>();
         for (Family family : familyRepository.findAll()) {
             result.add(family);
@@ -55,22 +60,28 @@ public class ModelController {
         return result;
     }
 
-    // TODO: Allow for updating the data about the person.
+    // /model/new_person
+    // Input: spaceSeparatedNames
+    // Output: personId
     @PostMapping("/model/new_person")
-    public Integer newPerson(@RequestParam String name, Principal principal) {
+    public @ResponseBody Integer newPerson(@RequestParam String spaceSeparatedNames, Principal principal) {
         // TODO: Authorization
+        List<String> names = Arrays.asList(spaceSeparatedNames.split(" "));
         Person person = new Person();
-        person.setNames(Collections.singleton(name));
-        personRepository.save(person);
+        person.setNames(names);
+        person = personRepository.save(person);
         return person.getId();
     }
 
+    // /model/delete_person
+    // Input: personId
+    // Output deleted
     @PostMapping("/model/delete_person")
-    public String deletePerson(@RequestParam Integer id, Principal principal) {
+    public @ResponseBody boolean deletePerson(@RequestParam Integer personId, Principal principal) {
         // TODO: Authorization
-        Optional<Person> maybePerson = personRepository.findById(id);
+        Optional<Person> maybePerson = personRepository.findById(personId);
         if (!maybePerson.isPresent()) {
-            return "No person with id " + id;
+            return false;
         }
         Person person = maybePerson.get();
 
@@ -82,26 +93,30 @@ public class ModelController {
         for (FamilyParent familyParent : person.getParentOfFamily()) {
             familyParentRepository.delete(familyParent);
         }
-
-        String deletedPersonName = person.getFormattedNames();
         personRepository.delete(person);
-        return deletedPersonName + " was deleted";
+        return true;
     }
 
+    // /model/new_family
+    // Input: Nothing
+    // Output: familyId
     @PostMapping("/model/new_family")
-    public String newFamily(Principal principal) {
+    public @ResponseBody Integer newFamily(Principal principal) {
         // TODO: Authorization
         Family family = new Family();
-        familyRepository.save(family);
-        return "New family created with id " + family.getId();
+        family = familyRepository.save(family);
+        return family.getId();
     }
 
+    // /model/delete_family
+    // Input: familyId
+    // Output: deleted
     @PostMapping("/model/delete_family")
-    public String deleteFamily(@RequestParam Integer id, Principal principal) {
+    public @ResponseBody boolean deleteFamily(@RequestParam Integer id, Principal principal) {
         // TODO: Authorization
         Optional<Family> maybeFamily = familyRepository.findById(id);
         if (!maybeFamily.isPresent()) {
-            return "No person with id " + id;
+            return false;
         }
         Family family = maybeFamily.get();
 
@@ -114,20 +129,19 @@ public class ModelController {
             familyParentRepository.delete(familyParent);
         }
 
-        String deletedFamilyId = family.getId().toString();
         familyRepository.delete(family);
-        return deletedFamilyId + " was deleted";
+        return true;
     }
 
-    @PostMapping(value = "/model/new_family_child")
-    public String newFamilyChild(@RequestParam Integer familyId,
+    // /model/attach_child
+    // Input: personId, familyId
+    // Output: added
+    @PostMapping(value = "/model/attach_child")
+    public @ResponseBody boolean attachChild(@RequestParam Integer familyId,
             @RequestParam Integer childId,
             Principal principal) {
-        FamilyChildKey familyChildKey = new FamilyChildKey();
-        familyChildKey.setChildId(childId);
-        familyChildKey.setFamilyId(familyId);
-        FamilyChild familyChild = new FamilyChild();
-        familyChild.setId(familyChildKey);
+        FamilyChildKey familyChildKey = new FamilyChildKey(familyId, childId);
+        FamilyChild familyChild = new FamilyChild(familyChildKey);
         // TODO: Validate input
         // TODO: Ensure no cycles.
         Person child = personRepository.findById(childId).get();
@@ -135,20 +149,30 @@ public class ModelController {
         familyChild.setChild(child);
         familyChild.setFamily(family);
         familyChildRepository.save(familyChild);
-        return child.getFormattedNames() + " added as a child to family with id " + family.getId();
+        return true;
     }
 
-    @PostMapping("/model/new_family_parent")
-    public @ResponseBody String newFamilyParent(@RequestParam Integer familyId,
+    // /model/detach_child
+    // Input: personId, familyId
+    // Output: deleted
+    @PostMapping(value = "/model/detach_child")
+    public @ResponseBody boolean detachChild(@RequestParam Integer familyId,
+            @RequestParam Integer childId,
+            Principal principal) {
+        FamilyChildKey familyChildKey = new FamilyChildKey(familyId, childId);
+        familyChildRepository.deleteById(familyChildKey);
+        return true;
+    }
+
+    // /model/attach_parent
+    // Input: personId, familyId
+    // Output: added
+    @PostMapping("/model/attach_parent")
+    public @ResponseBody boolean attachParent(@RequestParam Integer familyId,
             @RequestParam Integer parentId,
             Principal principal) {
-        // TODO: Constructors to make this code nicer.
-        // TODO: CLEANUP
-        FamilyParentKey FamilyParentKey = new FamilyParentKey();
-        FamilyParentKey.setFamilyId(familyId);
-        FamilyParentKey.setParentId(parentId);
-        FamilyParent familyParent = new FamilyParent();
-        familyParent.setId(FamilyParentKey);
+        FamilyParentKey familyParentKey = new FamilyParentKey(familyId, parentId);
+        FamilyParent familyParent = new FamilyParent(familyParentKey);
         // TODO: Validate input
         // TODO: Ensure no cycles.
         Person parent = personRepository.findById(parentId).get();
@@ -156,7 +180,34 @@ public class ModelController {
         familyParent.setFamily(family);
         familyParent.setParent(parent);
         familyParentRepository.save(familyParent);
-        return parent.getFormattedNames() + " added as a parent to family with id " + family.getId();
+        return true;
     }
 
+    // /model/detach_parent
+    // Input: personId, familyId
+    // Output: deleted
+    @PostMapping("/model/detach_parent")
+    public @ResponseBody boolean detachParent(@RequestParam Integer familyId,
+            @RequestParam Integer parentId,
+            Principal principal) {
+        FamilyParentKey familyParentKey = new FamilyParentKey(familyId, parentId);
+        familyParentRepository.deleteById(familyParentKey);
+        return true;
+    }
+
+    // /model/set_names
+    // Input: personId, spaceSeparatedNames
+    // Output: set
+    @PostMapping("/model/set_names")
+    public @ResponseBody boolean detachParent(@RequestParam Integer personId,
+            @RequestParam String spaceSeparatedNames,
+            Principal principal) {
+        List<String> names = Arrays.asList(spaceSeparatedNames.split(" "));
+        Optional<Person> maybePerson = personRepository.findById(personId);
+        if (!maybePerson.isPresent()) {
+            return false;
+        }
+        maybePerson.get().setNames(names);
+        return true;
+    }
 }
