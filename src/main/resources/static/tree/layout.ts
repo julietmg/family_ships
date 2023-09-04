@@ -9,6 +9,8 @@ export let personsPosition: Record<number, Position> = {};
 export let familyPosition: Record<number, Position> = {};
 
 export function recalculate() {
+    personsPosition = {};
+    familyPosition = {};
     // -------------------------- Assigning people to layers --------------------------
 
     // Algorithm lays out people with layers, starting with people with no parents.
@@ -78,9 +80,6 @@ export function recalculate() {
         layer.sort((a, b) => a - b);
         layers.push(layer);
     }
-
-    console.log("Layer assignment:");
-    console.log(layers);
 
     // -------------------------- Calculating constraints between people --------------------------
 
@@ -167,8 +166,8 @@ export function recalculate() {
         // Check if we don't have any existing constraints on any of the nodes.
         if (aConstraints.left != null || bConstraints.right != null ||
             (leftmostOf(aId) == leftmostOf(bId))) {
-            // TODO: Erase debug in the production version
-            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
+            // // TODO: Erase debug in the production version
+            // // console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
             return false;
         }
 
@@ -183,8 +182,8 @@ export function recalculate() {
         dependentOnFamilies[aId] = mutualDependentFamilies;
         dependentOnFamilies[bId] = mutualDependentFamilies;
 
-        // TODO: Erase debug in the production version
-        console.log(bId + " to the left of " + aId + " is added");
+        // // TODO: Erase debug in the production version
+        // // console.log(bId + " to the left of " + aId + " is added");
         return true;
     }
 
@@ -207,7 +206,7 @@ export function recalculate() {
         if (aConstraints.left != null || bConstraints.right != null ||
             (leftmostOf(aId) == leftmostOf(bId))) {
             // TODO: Erase debug in the production version
-            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
+            // console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
             return false;
         }
 
@@ -241,28 +240,28 @@ export function recalculate() {
             // They must be on the same layer
             if (personsLayer[aLeftParentId] != personsLayer[bRightParentId]) {
                 // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because thier parents are in different layers");
+                // console.log(bId + " to the left of " + aId + " is not possible because thier parents are in different layers");
                 return false;
             }
 
             // We will need to draw the single parented children somewhere
             if (aParentIds.length > 1 && model.isSingleParent(aLeftParentId)) {
                 // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because " + aLeftParentId + " is a single parent");
+                // console.log(bId + " to the left of " + aId + " is not possible because " + aLeftParentId + " is a single parent");
                 return false;
             }
 
             // We will need to draw the single parented children somewhere
             if (bParentIds.length > 1 && model.isSingleParent(bRightParentId)) {
                 // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because " + bRightParentId + " is a single parent");
+                // console.log(bId + " to the left of " + aId + " is not possible because " + bRightParentId + " is a single parent");
                 return false;
             }
 
             // Check if we can add a constraint between the ascendants. If yes, then we can add a constraint here as well.
             if (!addLeftConstraint(aLeftParentId, bRightParentId)) {
                 // TODO: Erase debug in the production version
-                console.log(bId + " to the left of " + aId + " is not possible because the parents " + aLeftParentId + " and " + bRightParentId + " can't be joined.");
+                // console.log(bId + " to the left of " + aId + " is not possible because the parents " + aLeftParentId + " and " + bRightParentId + " can't be joined.");
                 return false;
             }
             familyConstraints[aFamilyId].leftmostChild = aId;
@@ -540,8 +539,6 @@ export function recalculate() {
         }
     }
 
-    console.log(peopleInLayout);
-
     // TODO: Get rid of debug log lines for production version.
     console.log("Final layout:");
     console.log(layout);
@@ -572,9 +569,9 @@ export function recalculate() {
     // TODO: We need to work on the back fill!
     function calculatePosition(node: LayoutNode, boxStart: number, layer: number): number {
         if (node.kind == "person") {
-            console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
+            // console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
             if (personsPosition[node.id] != null) {
-                console.log("Cached");
+                // console.log("Cached");
                 return boxStart;
             }
 
@@ -599,30 +596,30 @@ export function recalculate() {
                 const leftPartnerPosition = personsPosition[node.leftPartner.personId];
                 familyPosition[node.leftPartner.familyId].x = (leftPartnerPosition.x + personsPosition[node.id].x) / 2;
             }
-            console.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
+            // console.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
             return boxEnd;
         } else if (node.kind == "left-partner") {
-            console.log("Calculating position for " + node.kind + " " + node.person.id + " " + boxStart + " on layer " + layer);
+            // console.log("Calculating position for " + node.kind + " " + node.person.id + " " + boxStart + " on layer " + layer);
             let boxEnd = calculatePosition(node.person, boxStart, layer);
             if (!areEmptyFamilyNodes(node.person.singleParentFamilies)) {
                 boxEnd = boxEnd + spaceBetweenPeople;
             }
             boxEnd = calculatePosition(node.family, boxEnd, layer);
-            console.log("Done with " + node.kind + " " + node.person.id + " " + boxEnd);
+            // console.log("Done with " + node.kind + " " + node.person.id + " " + boxEnd);
             return boxEnd;
         } else if (node.kind == "partners") {
-            console.log("Calculating position for " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxStart + " on layer " + layer);
+            // console.log("Calculating position for " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxStart + " on layer " + layer);
             if (personsPosition[node.left.id] != null &&
                 personsPosition[node.right.id] != null) {
-                console.log("Cached");
+                // console.log("Cached");
                 return boxStart;
             }
             if (personsPosition[node.left.id] != null) {
-                console.log("Cached partially.");
+                // console.log("Cached partially.");
                 return calculatePosition(node.right, boxStart, layer);
             }
             if (personsPosition[node.right.id] != null) {
-                console.log("Cached partially.");
+                // console.log("Cached partially.");
                 return calculatePosition(node.left, boxStart, layer);
             }
             let boxEnd = boxStart;
@@ -643,11 +640,11 @@ export function recalculate() {
             personsPosition[node.left.id] = { x: (actualBoxStart + boxEnd) / 2 - spaceBetweenPeople / 2, y: layer * spaceBetweenLayers };
             personsPosition[node.right.id] = { x: (actualBoxStart + boxEnd) / 2 + spaceBetweenPeople / 2, y: layer * spaceBetweenLayers };
             familyPosition[node.family.id] = { x: (actualBoxStart + boxEnd) / 2, y: layer * spaceBetweenLayers };
-            console.log("Done with " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxEnd);
+            // console.log("Done with " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxEnd);
 
             return boxEnd;
         } else if (node.kind == "family") {
-            console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer + " depth " + node.depth);
+            // console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer + " depth " + node.depth);
 
             if (familyPosition[node.id] != null) {
                 return boxStart;
@@ -667,7 +664,7 @@ export function recalculate() {
                 layerBox[member.layer] = Math.max(layerBox[member.layer], boxEnd);
             }
             familyPosition[node.id] = { x: (boxStart + boxEnd) / 2, y: layer * spaceBetweenLayers + node.depth * 30 };
-            console.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
+            // console.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
 
             return boxEnd;
         }
@@ -689,5 +686,6 @@ export function recalculate() {
         biggestBoxEnd = Math.max(boxEnd, biggestBoxEnd);
     }
 
+    console.log("Positions:");
     console.log(personsPosition);
 }

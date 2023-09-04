@@ -65,6 +65,8 @@ Follow the guide on "Setting up OAuth 2.0" on https://developers.google.com/iden
 
 To debug the status of the databases one can do:
 
+NOTE You might need to do `$ cd /usr/local/mysql/bin` to find the `mysql` command.
+
 ```
 $ sudo ./mysql -p # This might require you to pass in some passwords
 mysql> connect FamilyShips;
