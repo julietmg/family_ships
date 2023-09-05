@@ -40,7 +40,7 @@ export function recalculate() {
             // There is a special case of sibling, that don't have any parents.
             if (hasNonLaidOutParents ||
                 (model.childOfFamilies(id).filter((familyId) => model.familyParents(familyId).length == 0).length > 0
-                && layers.length == 0)) {
+                    && layers.length == 0)) {
                 continue;
             }
             considered.add(id);
@@ -524,8 +524,8 @@ export function recalculate() {
     }
 
     // We first push the families that have no parents.
-    for(const familyId in model.families) {
-        if(model.familyParents(+familyId).length == 0) {
+    for (const familyId in model.families) {
+        if (model.familyParents(+familyId).length == 0) {
             let pushed = pushFamilyChildrenIntoLayout(+familyId);
             layout[0].push({ kind: "family", id: +familyId, depth: 0, members: pushed });
         }
@@ -564,9 +564,9 @@ export function recalculate() {
         layerBox.push(0);
     }
 
-    const spaceBetweenLayers = 150.0;
+    const spaceBetweenLayers = 160.0;
     const spaceBetweenPeople = 300.0;
-    const depthModifier = 60.0;
+    const depthModifier = 50.0;
 
     function isEmptyFamily(familyNode: FamilyLayoutNode) {
         return familyNode.members.length == 0;
@@ -616,7 +616,9 @@ export function recalculate() {
         } else if (node.kind == "left-partner") {
             tools.log("Calculating position for " + node.kind + " " + node.person.id + " " + boxStart + " on layer " + layer);
             let boxEnd = calculatePosition(node.person, boxStart, layer);
-            if (!areEmptyFamilyNodes(node.person.singleParentFamilies)) {
+            if (!areEmptyFamilyNodes(node.person.singleParentFamilies) ||
+                isEmptyFamily(node.family) ||
+                node.family.members.length == 1) {
                 boxEnd = boxEnd + spaceBetweenPeople;
             }
             boxEnd = calculatePosition(node.family, boxEnd, layer);

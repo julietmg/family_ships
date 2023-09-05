@@ -459,9 +459,9 @@ export function recalculate() {
     for (const _layer of layout) {
         layerBox.push(0);
     }
-    const spaceBetweenLayers = 150.0;
+    const spaceBetweenLayers = 160.0;
     const spaceBetweenPeople = 300.0;
-    const depthModifier = 60.0;
+    const depthModifier = 50.0;
     function isEmptyFamily(familyNode) {
         return familyNode.members.length == 0;
     }
@@ -518,7 +518,9 @@ export function recalculate() {
         else if (node.kind == "left-partner") {
             tools.log("Calculating position for " + node.kind + " " + node.person.id + " " + boxStart + " on layer " + layer);
             let boxEnd = calculatePosition(node.person, boxStart, layer);
-            if (!areEmptyFamilyNodes(node.person.singleParentFamilies)) {
+            if (!areEmptyFamilyNodes(node.person.singleParentFamilies) ||
+                isEmptyFamily(node.family) ||
+                node.family.members.length == 1) {
                 boxEnd = boxEnd + spaceBetweenPeople;
             }
             boxEnd = calculatePosition(node.family, boxEnd, layer);

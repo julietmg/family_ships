@@ -36,10 +36,10 @@ const addPersonSvg = d3.select("body").append("svg")
     .attr("y", () => 10)
     .attr("width", () => 80)
     .attr("height", () => 80)
-    .on("click", (event, d) => {
-    const newPersonId = model.newPerson("Name");
+    .on("click", async (event, d) => {
+    const newPersonId = await model.newPerson("Name");
     tools.log("Added a new person " + newPersonId);
-    updateAll();
+    await updateAll();
 });
 const margin = { top: 50, right: 90, bottom: 30, left: 130 };
 const svg = d3.select("body").append("svg")
@@ -75,55 +75,32 @@ async function updateData() {
         }
     }
 }
-async function familyClicked(d) {
-    // TODO: Reload the graph after this finishes.
-    // And preferably do it smoothly.
-    // Also, block all the input for that period.
-    // It's annoying, but it would work.
-    tools.log("Adding a child to " + d);
-    let newPersonId = await fetch('/model/new_person', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-            'name': "child",
-        })
-    }).then(data => data.json());
-    tools.log(newPersonId);
-    let addingChildResult = await fetch('/model/attach_child', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-            'familyId': "" + d,
-            'childId': newPersonId
-        })
-    });
-    tools.log("Done");
-    updateAll();
-    tools.log("Updating");
-    tools.log("DOZNO");
-}
-function personClicked(d) {
-    // TODO: Erase debug in the production version
-    tools.log("Info about person: " + d);
-    tools.log(model.people[+d]);
-    tools.log("Parents:");
-    tools.log(model.parents(+d));
-    tools.log("Children:");
-    tools.log(model.children(+d));
-    tools.log("partners:");
-    tools.log(model.partners(+d));
-    tools.log("Siblings:");
-    tools.log(model.siblings(+d));
-    tools.log("Parent of families:");
-    tools.log(model.parentOfFamilies(+d));
-    tools.log("Child of families:");
-    tools.log(model.childOfFamilies(+d));
-    tools.log("Position:");
-    tools.log(layout.personsPosition[+d]);
+// -------------------------- Tweakable constants for drawing things --------------------------
+const drag = d3.drag();
+let selectionLink = { source: null, cursorPosition: { x: 0, y: 0 } };
+let hover = null;
+function updateSelectionGraphics() {
+    function sourcePosition(source) {
+        if (source.kind == "person") {
+            return layout.personsPosition[source.personId];
+        }
+        return layout.familyPosition[source.familyId];
+    }
+    g.selectAll(".selectionLink").data([selectionLink].filter((selectionLink) => selectionLink.source != null))
+        .join(enter => {
+        return enter.append("line").attr("class", () => "selectionLink")
+            .style("stroke", () => "grey")
+            .attr("x1", (selectionLink) => sourcePosition(selectionLink.source).x)
+            .attr("y1", (selectionLink) => sourcePosition(selectionLink.source).y)
+            .attr("x2", (selectionLink) => selectionLink.cursorPosition.x)
+            .attr("y2", (selectionLink) => selectionLink.cursorPosition.y).style("stroke-dasharray", "3 3");
+    }, update => {
+        return update
+            .attr("x1", (selectionLink) => sourcePosition(selectionLink.source).x)
+            .attr("y1", (selectionLink) => sourcePosition(selectionLink.source).y)
+            .attr("x2", (selectionLink) => selectionLink.cursorPosition.x)
+            .attr("y2", (selectionLink) => selectionLink.cursorPosition.y);
+    }, exit => exit.remove());
 }
 // -------------------------- Tweakable constants for drawing things --------------------------
 // This indicates how big is the white "invisible" box around the
@@ -133,10 +110,11 @@ const personBoxSize = { width: 150, height: 80 };
 // family symbol.
 const familyBoxSize = { width: 28, height: 28 };
 const familyIconSize = { width: 24, height: 24 };
+const familyChildrenCircleSize = 16;
 const familyDeleteButtonOffset = { dx: 0, dy: -30 };
 const personDeleteButtonOffset = { dx: 0, dy: -30 };
 const deleteButtonSize = { width: 15, height: 15 };
-const deleteButtonDistanceFromPerson = 15;
+const deleteButtonDistanceFromPerson = 10;
 function updateGraphics() {
     let maxX = 0;
     let maxY = 0;
@@ -185,7 +163,7 @@ function updateGraphics() {
         if (target.y == source.y) {
             return { x: +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.width / 2, y: target.y - deleteButtonSize.height / 2 };
         }
-        return { x: target.x, y: target.y + (personBoxSize.height / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.height / 2 };
+        return { x: target.x - deleteButtonSize.width / 2, y: target.y + (personBoxSize.height / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.height / 2 };
     }
     g.selectAll(".parent").data(parentLinks, (d) => d.parentId + "parent" + d.familyId)
         .join(enter => {
@@ -274,18 +252,65 @@ function updateGraphics() {
             .attr("height", () => familyBoxSize.height)
             .style("stroke", () => "white")
             .style("fill", () => "white");
+        let heart = familyHook.append("image")
+            .attr("xlink:href", "icons/red_heart.svg")
+            .attr("x", () => -familyIconSize.width / 2)
+            .attr("y", () => -familyIconSize.height / 2)
+            .attr("width", () => familyIconSize.width)
+            .attr("height", () => familyIconSize.height);
+        heart.call(drag.on("start", (event, d) => {
+            selectionLink = { source: { kind: "family-parent", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            selectionLink = { source: { kind: "family-parent", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            if (hover != null) {
+                if (hover.kind == "person") {
+                    await model.attachParent(d, hover.personId);
+                }
+            }
+            selectionLink.source = null;
+            await updateSelectionGraphics();
+            await updateAll();
+        }));
+        heart.on("mouseover touchstart pointenter", (event, d) => {
+            hover = { kind: "family-parent", familyId: d };
+        });
+        heart.on("mouseout touchend pointerout touchend", (event, d) => {
+            hover = null;
+        });
+        let childrenCircle = familyHook.append("g").attr("transform", (d) => {
+            return "translate(" + 0 + "," + (familyIconSize.height - familyChildrenCircleSize / 2) + ")";
+        })
+            .append("circle")
+            .style("stroke", () => "darkred")
+            .style("fill", () => "darkred")
+            .attr("r", () => 5);
+        childrenCircle.call(drag.on("start", (event, d) => {
+            selectionLink = { source: { kind: "family-child", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            selectionLink = { source: { kind: "family-child", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            if (hover != null) {
+                if (hover.kind == "person") {
+                    await model.attachChild(d, hover.personId);
+                }
+            }
+            selectionLink.source = null;
+            await updateSelectionGraphics();
+            await updateAll();
+        }));
+        childrenCircle.on("mouseover touchstart pointenter pointenter", (event, d) => {
+            hover = { kind: "family-child", familyId: d };
+        });
+        childrenCircle.on("mouseout touchend pointerout", (event, d) => {
+            hover = null;
+        });
         if (tools.debug()) {
             familyHook.append("text").text((d) => d);
-        }
-        else {
-            familyHook.append("image")
-                .attr("xlink:href", "icons/red_heart.svg")
-                .style("stroke", () => "red")
-                .style("fill", () => "red")
-                .attr("x", () => -familyIconSize.width / 2)
-                .attr("y", () => -familyIconSize.height / 2)
-                .attr("width", () => familyIconSize.width)
-                .attr("height", () => familyIconSize.height);
         }
         let familyDeleteButton = familyHook.append("g");
         familyDeleteButton.append("image").attr("xlink:href", "icons/heart.svg")
@@ -311,6 +336,37 @@ function updateGraphics() {
         .join(enter => {
         let personHook = enter.append("g")
             .attr("class", () => "person");
+        personHook.call(drag.on("start", (event, d) => {
+            selectionLink = { source: { kind: "person", personId: d }, cursorPosition: { x: event.x, y: event.y } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            selectionLink = { source: { kind: "person", personId: d }, cursorPosition: { x: event.x, y: event.y } };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            if (hover != null) {
+                if (hover.kind == "person") {
+                    let newFamilyId = await model.newFamily();
+                    await model.attachParent(newFamilyId, hover.personId);
+                    await model.attachParent(newFamilyId, d);
+                }
+                if (hover.kind == "family-child") {
+                    await model.attachChild(hover.familyId, d);
+                }
+                if (hover.kind == "family-parent") {
+                    await model.attachParent(hover.familyId, d);
+                }
+            }
+            console.log(event);
+            selectionLink.source = null;
+            await updateSelectionGraphics();
+            await updateAll();
+        }));
+        personHook.on("mouseover touchstart pointenter", (event, d) => {
+            hover = { kind: "person", personId: d };
+        });
+        personHook.on("mouseout touchend pointerout", (event, d) => {
+            hover = null;
+        });
         personHook.attr("transform", (d) => {
             return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")";
         });
