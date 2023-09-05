@@ -50,32 +50,22 @@ const addPersonSvg = d3.select("body").append("svg")
         updateAll();
     });
 
-const margin = { top: 50, right: 90, bottom: 30, left: 130 },
-    width = 10000 + margin.left + margin.right,
-    height = 10000 + margin.top + margin.bottom;
-
+const margin = { top: 50, right: 90, bottom: 30, left: 130 };
 const svg = d3.select("body").append("svg")
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", height + margin.top + margin.bottom),
-    g = svg.append("g")
-        .attr("transform",
-            "translate(" + margin.left + "," + margin.top + ")");
+    .attr("width", margin.left + margin.right)
+    .attr("height", margin.top + margin.bottom);
+const g = svg.append("g")
+    .attr("transform",
+        "translate(" + margin.left + "," + margin.top + ")");
 
-let parentLinks: Array<Array<number>> = [];
-let familyNodes: Array<number> = [];
 let personNodes: Array<number> = [];
-let childrenLinks: Array<Array<number>> = [];
+let familyNodes: Array<number> = [];
+let parentLinks: Array<{ parentId: number, familyId: number }> = [];
+let childrenLinks: Array<{ childId: number, familyId: number }> = [];
 
 async function updateData() {
     await model.reload();
     layout.recalculate();
-
-    parentLinks = [];
-    for (const personId in model.people) {
-        for (const familyId of model.parentOfFamilies(+personId)) {
-            parentLinks.push([+personId, familyId]);
-        }
-    }
 
     familyNodes = [];
     for (const familyId in model.families) {
@@ -87,10 +77,17 @@ async function updateData() {
         personNodes.push(+personId);
     }
 
+    parentLinks = [];
+    for (const personId in model.people) {
+        for (const familyId of model.parentOfFamilies(+personId)) {
+            parentLinks.push({ parentId: +personId, familyId: familyId });
+        }
+    }
+
     childrenLinks = [];
     for (const personId in model.people) {
         for (const familyId of model.childOfFamilies(+personId)) {
-            childrenLinks.push([+personId, +familyId]);
+            childrenLinks.push({ childId: +personId, familyId: familyId });
         }
     }
 }
@@ -149,180 +146,246 @@ function personClicked(d: number) {
     tools.log(layout.personsPosition[+d]);
 }
 
+// -------------------------- Tweakable constants for drawing things --------------------------
+
+// This indicates how big is the white "invisible" box around the
+// persons text.
 const personBoxSize = { width: 150, height: 80 };
 
+// This indicates how big is the white "invisible" box around the
+// family symbol.
+const familyBoxSize = { width: 28, height: 28 };
+const familyIconSize = { width: 24, height: 24 };
+const familyDeleteButtonOffset = { dx: 0, dy: -30 };
+const personDeleteButtonOffset = { dx: 0, dy: -30 };
+const deleteButtonSize = { width: 15, height: 15 };
+const deleteButtonDistanceFromPerson = 15;
+
+
 function updateGraphics() {
-    const deleteIconSize = { width: 15, height: 15 };
-    const distanceFromPerson = 15;
+    let maxX = 0;
+    let maxY = 0;
+    for (const personId in layout.personsPosition) {
+        const personPosition = layout.personsPosition[personId];
+        const personXEnd = personPosition.x + personBoxSize.width;
+        const personYEnd = personPosition.y + personBoxSize.height;
+        if (personXEnd > maxX) {
+            maxX = personXEnd;
+        }
+        if (personYEnd > maxY) {
+            maxY = personYEnd;
+        }
+    }
 
-    // TODO: Have some functions here.
+    svg.attr("width", margin.left + personBoxSize.width / 2 + maxX + margin.right);
+    svg.attr("height", margin.top + personBoxSize.height / 2 + maxY + margin.bottom);
 
-    g.selectAll(".parent").data(parentLinks, (link: Array<number>) => link[0] + "parent" + link[1])
+
+
+    // -------------------------- Utilities for drawing things --------------------------
+
+    function pathLength(path: Array<[number, number]>) {
+        let length = 0;
+        for (let i = 1; i < path.length; i += 1) {
+            length += Math.sqrt(Math.pow(path[i][0] - path[i - 1][0], 2)
+                + Math.pow(path[i][1] - path[i - 1][1], 2));
+        }
+        return length;
+    }
+
+    function fadePathStrokeBeforeTransition(path: Array<[number, number]>): { "stroke-dasharray": string, "stroke-dashoffset": string } {
+        const lineLength = pathLength(path);
+        return { "stroke-dasharray": lineLength + " " + lineLength, "stroke-dashoffset": "" + lineLength };
+    }
+
+    function fadePathStrokeAfterTransition(path: Array<[number, number]>): { "stroke-dasharray": string, "stroke-dashoffset": string } {
+        const lineLength = pathLength(path);
+        return { "stroke-dasharray": lineLength + " " + lineLength, "stroke-dashoffset": "" + 0 };
+    }
+
+    const line = d3.line();
+
+    // -------------------------- Drawing parent paths --------------------------
+
+    function parentPathPoints(parentId: number, familyId: number): Array<[number, number]> {
+        const source = layout.familyPosition[familyId];
+        const target = layout.personsPosition[parentId];
+        return [[source.x, source.y],
+        [target.x, source.y],
+        [target.x, target.y]];
+    }
+
+    function parentPathDeleteButtonPosition(parentId: number, familyId: number): { x: number, y: number } {
+        const source = layout.familyPosition[familyId];
+        const target = layout.personsPosition[parentId];
+        if (target.y == source.y) {
+            return { x: +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.width / 2, y: target.y - deleteButtonSize.height / 2 };
+        }
+        return { x: target.x, y: target.y + (personBoxSize.height / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.height / 2 };
+    }
+
+    g.selectAll(".parent").data(parentLinks, (d: { parentId: number, familyId: number }) => d.parentId + "parent" + d.familyId)
         .join(
             enter => {
-                // -------------------------- Drawing initial parent path --------------------------
+
                 let parentLinkHook = enter.append("g").attr("class", () => "parent");
                 let parentPath = parentLinkHook.append("path");
                 parentPath.style("stroke", () => "grey").style("fill", () => "none");
-                parentPath.attr("d", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    return d3.line()([[source.x, source.y],
-                    [target.x, source.y],
-                    [target.x, target.y]]);
-                }).attr("stroke-dasharray", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
-                    return lineLength + " " + lineLength;
-                }).attr("stroke-dashoffset", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
-                    return lineLength;
-                });
-
-                // -------------------------- Deleted parent link button --------------------------
+                parentPath
+                    .attr("d", (d: { parentId: number, familyId: number }) =>
+                        line(parentPathPoints(d.parentId, d.familyId)))
+                    .attr("stroke-dasharray", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dashoffset"]);
 
                 parentLinkHook.append("image")
                     .attr("xlink:href", "icons/delete.svg")
-                    .attr("x", (d) => {
-                        const source = layout.familyPosition[d[1]];
-                        const target = layout.personsPosition[d[0]];
-                        if (target.y == source.y) {
-                            return +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + distanceFromPerson) - deleteIconSize.width / 2;
-                        }
-                        return target.x;
-                    })
-                    .attr("y", (d) => {
-                        const source = layout.familyPosition[d[1]];
-                        const target = layout.personsPosition[d[0]];
-                        if (target.y == source.y) {
-                            return target.y - deleteIconSize.height / 2;
-                        }
-                        return target.y + (personBoxSize.height / 2 + distanceFromPerson) - deleteIconSize.height / 2;
-                    })
-                    .attr("width", () => deleteIconSize.width)
-                    .attr("height", () => deleteIconSize.height)
-                    .on("click", async (event, d) => {
-                        await model.detachParent(d[1], d[0]);
+                    .attr("x", (d: { parentId: number, familyId: number }) => parentPathDeleteButtonPosition(d.parentId, d.familyId).x)
+                    .attr("y", (d: { parentId: number, familyId: number }) => parentPathDeleteButtonPosition(d.parentId, d.familyId).y)
+                    .attr("width", () => deleteButtonSize.width)
+                    .attr("height", () => deleteButtonSize.height)
+                    .on("click", async (event, d: { parentId: number, familyId: number }) => {
+                        await model.detachParent(d.familyId, d.parentId);
                         await updateAll();
                     }
                     );
                 return parentLinkHook;
             },
             update => {
-                update.select("path").transition().attr("d", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    return d3.line()([[source.x, source.y],
-                    [target.x, source.y],
-                    [target.x, target.y]]);
-                }).attr("stroke-dasharray", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    const lineLength = Math.abs(source.y - target.y) + Math.abs(source.x - target.x);
-                    return lineLength + " " + lineLength;
-                }).attr("stroke-dashoffset", (d: Array<number>) => {
-                    return 0;
-                })
-                update.select("image").transition().attr("x", (d) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    if (target.y == source.y) {
-                        return +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + distanceFromPerson) - deleteIconSize.width / 2;
-                    }
-                    return target.x;
-                })
-                    .attr("y", (d) => {
-                        const source = layout.familyPosition[d[1]];
-                        const target = layout.personsPosition[d[0]];
-                        if (target.y == source.y) {
-                            return target.y - deleteIconSize.height / 2;
-                        }
-                        return target.y + (personBoxSize.height / 2 + distanceFromPerson) - deleteIconSize.height / 2;
-                    })
+                update.select("path").transition().attr("d", (d: { parentId: number, familyId: number }) =>
+                    line(parentPathPoints(d.parentId, d.familyId)))
+                    .attr("stroke-dasharray", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dashoffset"])
+                update.select("image").transition().attr("x", (d: { parentId: number, familyId: number }) =>
+                    parentPathDeleteButtonPosition(d.parentId, d.familyId).x)
+                    .attr("y", (d: { parentId: number, familyId: number }) =>
+                        parentPathDeleteButtonPosition(d.parentId, d.familyId).y)
                 return update;
             },
             exit => exit.remove()
         );
 
-    g.selectAll(".child").data(childrenLinks, (link: Array<number>) => link[0] + "child" + link[1])
+    // -------------------------- Drawing children paths --------------------------
+
+    function childPathPoints(childId: number, familyId: number): Array<[number, number]> {
+        const source = layout.familyPosition[familyId];
+        const target = layout.personsPosition[childId];
+        const midHeight = (source.y + target.y) / 2;
+        return [[source.x, source.y],
+        [source.x, midHeight],
+        [target.x, midHeight],
+        [target.x, target.y]];
+    }
+
+    function childPathDeleteButtonPosition(childId: number, familyId: number): { x: number, y: number } {
+        const source = layout.familyPosition[familyId];
+        const target = layout.personsPosition[childId];
+        return { x: target.x - deleteButtonSize.width / 2, y: target.y - deleteButtonDistanceFromPerson - personBoxSize.height / 2 - deleteButtonSize.height / 2 };
+    }
+
+    g.selectAll(".child").data(childrenLinks, (d: { childId: number, familyId: number }) => d.childId + "child" + d.familyId)
         .join(
             enter => {
-                let childLinkHook = enter.append("path").attr("class", () => "child")
-                childLinkHook.style("stroke", () => "grey").style("fill", () => "none");
-                childLinkHook.attr("d", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    const midHeight = (source.y + target.y) / 2;
-                    return d3.line()([[source.x, source.y],
-                    [source.x, midHeight],
-                    [target.x, midHeight],
-                    [target.x, target.y]]);
-                }).attr("stroke-dasharray", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    const midHeight = (source.y + target.y) / 2;
-                    const lineLength = Math.abs(source.y - midHeight) + Math.abs(source.x - target.x) + Math.abs(midHeight - target.y);
-                    return lineLength + " " + lineLength;
-                }).attr("stroke-dashoffset", (d: Array<number>) => {
-                    const source = layout.familyPosition[d[1]];
-                    const target = layout.personsPosition[d[0]];
-                    const midHeight = (source.y + target.y) / 2;
-                    const lineLength = Math.abs(source.y - midHeight) + Math.abs(source.x - target.x) + Math.abs(midHeight - target.y);
-                    return lineLength;
-                });
+                let childLinkHook = enter.append("g").attr("class", () => "child")
+                let childPath = childLinkHook.append("path");
+                childPath.style("stroke", () => "grey").style("fill", () => "none");
+                childPath
+                    .attr("d", (d: { childId: number, familyId: number }) =>
+                        line(childPathPoints(d.childId, d.familyId))
+                    )
+                    .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(parentPathPoints(d.childId, d.familyId))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(parentPathPoints(d.childId, d.familyId))["stroke-dashoffset"]);
+
+                childLinkHook.append("image")
+                    .attr("xlink:href", "icons/delete.svg")
+                    .attr("x", (d: { childId: number, familyId: number }) => childPathDeleteButtonPosition(d.childId, d.familyId).x)
+                    .attr("y", (d: { childId: number, familyId: number }) => childPathDeleteButtonPosition(d.childId, d.familyId).y)
+                    .attr("width", () => deleteButtonSize.width)
+                    .attr("height", () => deleteButtonSize.height)
+                    .on("click", async (event, d: { childId: number, familyId: number }) => {
+                        await model.detachChild(d.familyId, d.childId);
+                        await updateAll();
+                    }
+                    );
+
                 return childLinkHook;
             },
-            update => update.transition().attr("d", (d: Array<number>) => {
-                const source = layout.familyPosition[d[1]];
-                const target = layout.personsPosition[d[0]];
-                const midHeight = (source.y + target.y) / 2;
-                return d3.line()([[source.x, source.y],
-                [source.x, midHeight],
-                [target.x, midHeight],
-                [target.x, target.y]]);
-            }).attr("stroke-dasharray", (d: Array<number>) => {
-                const source = layout.familyPosition[d[1]];
-                const target = layout.personsPosition[d[0]];
-                const midHeight = (source.y + target.y) / 2;
-                const lineLength = Math.abs(source.y - midHeight) + Math.abs(source.x - target.x) + Math.abs(midHeight - target.y);
-                return lineLength + " " + lineLength;
-            }).attr("stroke-dashoffset", (d: Array<number>) => {
-                return 0;
-            }),
-            exit => exit.remove()
+            update => {
+                update.select("path").transition()
+                    .attr("d", (d: { childId: number, familyId: number }) => line(childPathPoints(d.childId, d.familyId)))
+                    .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(d.childId, d.familyId))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(d.childId, d.familyId))["stroke-dashoffset"]);
 
+                update.select("image").transition().attr("x", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).x)
+                    .attr("y", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).y);
+
+                return update;
+            }
+            ,
+            exit => exit.remove()
         );
-    // adds the links between the nodes
+
+    // -------------------------- Drawing family nodes --------------------------
+
     g.selectAll(".family").data(familyNodes, (d: number) => d)
         .join(
             enter => {
                 let familyHook = enter.append("g").attr("class", () => "family");
+                familyHook.attr("transform", (d) => {
+                    return "translate(" + layout.familyPosition[+d].x + "," + layout.familyPosition[+d].y + ")"
+                });
+
                 familyHook
-                    .append("circle")
-                    .attr("r", () => 25)
+                    .append("rect")
+                    .attr("x", () => -familyBoxSize.width / 2)
+                    .attr("y", () => -familyBoxSize.height / 2)
+                    .attr("width", () => familyBoxSize.width)
+                    .attr("height", () => familyBoxSize.height)
                     .style("stroke", () => "white")
                     .style("fill", () => "white");
+
                 if (tools.debug()) {
                     familyHook.append("text").text((d: number) => d);
                 }
                 else {
                     familyHook.append("image")
-                        .attr("xlink:href", "heart.svg")
-                        .attr("x", () => -10)
-                        .attr("y", () => -10)
-                        .attr("width", () => 20)
-                        .attr("height", () => 20)
-                        .on("click", async function (_event: any, d) {
-                        });
+                        .attr("xlink:href", "icons/red_heart.svg")
+                        .style("stroke", () => "red")
+                        .style("fill", () => "red")
+                        .attr("x", () => -familyIconSize.width / 2)
+                        .attr("y", () => -familyIconSize.height / 2)
+                        .attr("width", () => familyIconSize.width)
+                        .attr("height", () => familyIconSize.height);
                 }
 
-                familyHook.on("click", (_event: any, d: any) => familyClicked(d));
-                familyHook.attr("transform", (d) => {
-                    return "translate(" + layout.familyPosition[+d].x + "," + layout.familyPosition[+d].y + ")"
-                });
+                let familyDeleteButton = familyHook.append("g");
+
+                familyDeleteButton.append("image").attr("xlink:href", "icons/heart.svg")
+                    .attr("x", () => familyDeleteButtonOffset.dx - deleteButtonSize.width / 2)
+                    .attr("y", () => familyDeleteButtonOffset.dy - deleteButtonSize.height / 2)
+                    .attr("width", () => deleteButtonSize.width)
+                    .attr("height", () => deleteButtonSize.height);
+
+                familyDeleteButton.append("image")
+                    .attr("xlink:href", "icons/delete.svg")
+                    .attr("x", () => familyDeleteButtonOffset.dx - deleteButtonSize.width / 2)
+                    .attr("y", () => familyDeleteButtonOffset.dy - deleteButtonSize.height / 2)
+                    .attr("width", () => deleteButtonSize.width)
+                    .attr("height", () => deleteButtonSize.height);
+
+                familyDeleteButton.on("click", async (event, d) => {
+                    await model.deleteFamily(d);
+                    await updateAll();
+                }
+                );
+
                 return familyHook;
             },
             update => update.transition().attr("transform", (d) => {
@@ -336,6 +399,11 @@ function updateGraphics() {
             enter => {
                 let personHook = enter.append("g")
                     .attr("class", () => "person");
+
+                personHook.attr("transform", (d: number) => {
+                    return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")"
+                });
+
                 personHook
                     .append("rect")
                     .attr("width", () => personBoxSize.width)
@@ -344,6 +412,7 @@ function updateGraphics() {
                     .attr("y", () => -personBoxSize.height / 2)
                     .style("stroke", () => "white")
                     .style("fill", () => "white");
+
                 personHook.append("text")
                     .style("text-anchor",
                         () => "middle")
@@ -355,10 +424,22 @@ function updateGraphics() {
                     })
                     .style("font-size", "24px")
                     .attr("font-family", "Dancing Script");
-                personHook.on("click", (_event: any, d: any) => personClicked(d));
-                personHook.attr("transform", (d: number) => {
-                    return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")"
-                });
+
+
+                let personDeleteButton = personHook.append("g");
+
+                personDeleteButton.append("image").attr("xlink:href", "icons/person_off.svg")
+                    .attr("x", () => personDeleteButtonOffset.dx - deleteButtonSize.width / 2)
+                    .attr("y", () => personDeleteButtonOffset.dy - deleteButtonSize.height / 2)
+                    .attr("width", () => deleteButtonSize.width)
+                    .attr("height", () => deleteButtonSize.height);
+
+
+                personDeleteButton.on("click", async (event, d) => {
+                    await model.deletePerson(d);
+                    await updateAll();
+                }
+                );
                 return personHook;
             },
             update => update.transition().attr("transform", (d: number) => {

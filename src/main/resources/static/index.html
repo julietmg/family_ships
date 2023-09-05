@@ -11,119 +11,127 @@
     <script type="text/javascript" src="/webjars/jquery/jquery.min.js"></script>
     <script type="text/javascript" src="/webjars/js-cookie/js.cookie.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500&family=Montserrat:wght@300&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500&family=Montserrat:wght@300&display=swap"
+        rel="stylesheet">
 </head>
 
 <body>
-    <img src="familyships.png" width="50"/>
     
-    <label class="switch" >
+
+    <label class="switch">
         <!-- Add `checked` here to turn on debug mode. -->
-        <input type="checkbox" id="debug-switch" checked>
+        <input type="checkbox" id="debug-switch">
         <span class="slider round"></span>
     </label>
 
-    <h1>FamilyShips</h1>
-    <div class="container"></div>
 
     <div class="container unauthenticated">
+        <img src="familyships.png" width="50" />
+        <h1>FamilyShips</h1>
         <div>
             With GitHub: <a href="/oauth2/authorization/github">click here</a>
-          </div>
+        </div>
         <div>
             With Google: <a href="/oauth2/authorization/google">click here</a>
-          </div>
+        </div>
     </div>
     <div class="container authenticated" style="display:none">
+
         Logged in as: <span id="id"></span>
+        <div class="debug">
+            <div>
+                Add person:
+                <form action="/model/new_person" method="POST">
+                    <input type="text" name="name" placeholder="Enter the person's name">
+                    <input type="submit" value="Add">
+                </form>
+            </div>
 
-        <div>
-            Add person:
-            <form action="/model/new_person" method="POST">
-                <input type="text" name="name" placeholder="Enter the person's name">
-                <input type="submit" value="Add">
-            </form>
+            <div>
+                Delete person:
+                <form action="/model/delete_person" method="POST">
+                    <input type="text" name="personId" placeholder="Enter the person's id">
+                    <input type="submit" value="Delete">
+                </form>
+            </div>
+
+            <div>
+                Add family:
+                <form action="/model/new_family" method="POST">
+                    <input type="submit" value="Add">
+                </form>
+            </div>
+
+            <div>
+                Delete family:
+                <form action="/model/delete_family" method="POST">
+                    <input type="text" name="familyId" placeholder="Enter the person's id">
+                    <input type="submit" value="Delete">
+                </form>
+            </div>
+
+
+            <div>
+                Attach a child to a family:
+                <form action="/model/attach_child" method="POST">
+                    <input type="text" name="familyId" placeholder="Enter family id">
+                    <input type="text" name="childId" placeholder="Enter child id">
+                    <input type="submit" value="Add">
+                </form>
+            </div>
+
+            <div>
+                Detach a child from a family:
+                <form action="/model/detach_child" method="POST">
+                    <input type="text" name="familyId" placeholder="Enter family id">
+                    <input type="text" name="childId" placeholder="Enter child id">
+                    <input type="submit" value="Add">
+                </form>
+            </div>
+
+
+            <div>
+                Attach a parent to a family:
+                <form action="/model/attach_parent" method="POST">
+                    <input type="text" name="familyId" placeholder="Enter family id">
+                    <input type="text" name="parentId" placeholder="Enter parent id">
+                    <input type="submit" value="Add">
+                </form>
+            </div>
+
+            <div>
+                Detach a parent from a family:
+                <form action="/model/detach_parent" method="POST">
+                    <input type="text" name="familyId" placeholder="Enter family id">
+                    <input type="text" name="parentId" placeholder="Enter parent id">
+                    <input type="submit" value="Add">
+                </form>
+            </div>
+
+            <div>
+                Set names on the person:
+                <form action="/model/detach_parent" method="POST">
+                    <input type="text" name="personId" placeholder="Enter a person id">
+                    <input type="text" name="spaceSeparatedNames" placeholder="Enter new names">
+                    <input type="submit" value="Add">
+                </form>
+            </div>
         </div>
 
-        <div>
-            Delete person:
-            <form action="/model/delete_person" method="POST">
-                <input type="text" name="personId" placeholder="Enter the person's id">
-                <input type="submit" value="Delete">
-            </form>
-        </div>
-
-        <div>
-            Add family:
-            <form action="/model/new_family" method="POST">
-                <input type="submit" value="Add">
-            </form>
-        </div>
-
-        <div>
-            Delete family:
-            <form action="/model/delete_family" method="POST">
-                <input type="text" name="familyId" placeholder="Enter the person's id">
-                <input type="submit" value="Delete">
-            </form>
-        </div>
 
 
-        <div>
-            Attach a child to a family:
-            <form action="/model/attach_child" method="POST">
-                <input type="text" name="familyId" placeholder="Enter family id">
-                <input type="text" name="childId" placeholder="Enter child id">
-                <input type="submit" value="Add">
-            </form>
-        </div>
-
-        <div>
-            Detach a child from a family:
-            <form action="/model/detach_child" method="POST">
-                <input type="text" name="familyId" placeholder="Enter family id">
-                <input type="text" name="childId" placeholder="Enter child id">
-                <input type="submit" value="Add">
-            </form>
-        </div>
-
-
-        <div>
-            Attach a parent to a family:
-            <form action="/model/attach_parent" method="POST">
-                <input type="text" name="familyId" placeholder="Enter family id">
-                <input type="text" name="parentId" placeholder="Enter parent id">
-                <input type="submit" value="Add">
-            </form>
-        </div>
-
-        <div>
-            Detach a parent from a family:
-            <form action="/model/detach_parent" method="POST">
-                <input type="text" name="familyId" placeholder="Enter family id">
-                <input type="text" name="parentId" placeholder="Enter parent id">
-                <input type="submit" value="Add">
-            </form>
-        </div>
-
-        <div>
-            Set names on the person:
-            <form action="/model/detach_parent" method="POST">
-                <input type="text" name="personId" placeholder="Enter a person id">
-                <input type="text" name="spaceSeparatedNames" placeholder="Enter new names">
-                <input type="submit" value="Add">
-            </form>
-        </div>
-        
-        
-        
         <div>
             <button onClick="logout()">Logout</button>
         </div>
     </div>
 
     <script type="text/javascript">
+        if (!$("#debug-switch").checked) {
+            $(".debug").hide();
+        }
+
         $.get("/auth/id", function (data) {
             $("#id").html(data.id);
             $(".unauthenticated").hide();

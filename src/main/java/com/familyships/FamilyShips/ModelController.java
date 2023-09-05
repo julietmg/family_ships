@@ -112,9 +112,9 @@ public class ModelController {
     // Input: familyId
     // Output: deleted
     @PostMapping("/model/delete_family")
-    public @ResponseBody boolean deleteFamily(@RequestParam Integer id, Principal principal) {
+    public @ResponseBody boolean deleteFamily(@RequestParam Integer familyId, Principal principal) {
         // TODO: Authorization
-        Optional<Family> maybeFamily = familyRepository.findById(id);
+        Optional<Family> maybeFamily = familyRepository.findById(familyId);
         if (!maybeFamily.isPresent()) {
             return false;
         }
