@@ -76,9 +76,46 @@ async function updateData() {
     }
 }
 // -------------------------- Tweakable constants for drawing things --------------------------
-const drag = d3.drag();
+// This indicates how big is the white "invisible" box around the
+// persons text.
+const personBoxSize = { width: 150, height: 80 };
+// This indicates how big is the white "invisible" box around the
+// family symbol.
+const familyBoxSize = { width: 28, height: 28 };
+const familyIconSize = { width: 24, height: 24 };
+const familyChildrenCircleSize = 16;
+const familyDeleteButtonOffset = { dx: 0, dy: -30 };
+const personDeleteButtonOffset = { dx: 0, dy: -30 };
+const deleteButtonSize = { width: 15, height: 15 };
+const deleteButtonDistanceFromPerson = 10;
 let selectionLink = { source: null, cursorPosition: { x: 0, y: 0 } };
-let hover = null;
+function findFunctionalEntityAtPoint(x, y) {
+    let closest = null;
+    let closestDistanceSquared = null;
+    for (const personId in model.people) {
+        let pos = layout.personsPosition[personId];
+        const distanceSquared = Math.pow(pos.x - x, 2) + Math.pow(pos.y - y, 2);
+        if (distanceSquared < Math.pow(personBoxSize.height, 2) && closestDistanceSquared == null || distanceSquared < closestDistanceSquared) {
+            closest = { kind: "person", personId: +personId };
+            closestDistanceSquared = distanceSquared;
+        }
+    }
+    for (const familyId in model.families) {
+        let pos = layout.familyPosition[familyId];
+        const distanceSquared = Math.pow(pos.x - x, 2) + Math.pow(pos.y - y, 2);
+        if (distanceSquared < Math.pow(familyBoxSize.height, 2) && closestDistanceSquared == null || distanceSquared < closestDistanceSquared) {
+            let kind = "family-parent";
+            // Dragging to/from bottom parts creates a child. 
+            // Dragging to/from top parts creates a parent.
+            if (y > pos.y + familyBoxSize.height / 4) {
+                kind = "family-child";
+            }
+            closest = { kind: kind, familyId: +familyId };
+            closestDistanceSquared = distanceSquared;
+        }
+    }
+    return closest;
+}
 function updateSelectionGraphics() {
     function sourcePosition(source) {
         if (source.kind == "person") {
@@ -102,19 +139,6 @@ function updateSelectionGraphics() {
             .attr("y2", (selectionLink) => selectionLink.cursorPosition.y);
     }, exit => exit.remove());
 }
-// -------------------------- Tweakable constants for drawing things --------------------------
-// This indicates how big is the white "invisible" box around the
-// persons text.
-const personBoxSize = { width: 150, height: 80 };
-// This indicates how big is the white "invisible" box around the
-// family symbol.
-const familyBoxSize = { width: 28, height: 28 };
-const familyIconSize = { width: 24, height: 24 };
-const familyChildrenCircleSize = 16;
-const familyDeleteButtonOffset = { dx: 0, dy: -30 };
-const personDeleteButtonOffset = { dx: 0, dy: -30 };
-const deleteButtonSize = { width: 15, height: 15 };
-const deleteButtonDistanceFromPerson = 10;
 function updateGraphics() {
     let maxX = 0;
     let maxY = 0;
@@ -258,57 +282,32 @@ function updateGraphics() {
             .attr("y", () => -familyIconSize.height / 2)
             .attr("width", () => familyIconSize.width)
             .attr("height", () => familyIconSize.height);
-        heart.call(drag.on("start", (event, d) => {
-            selectionLink = { source: { kind: "family-parent", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
+        familyHook.call(d3.drag().on("start", (event, d) => {
+            let kind = "family-parent";
+            if (event.y > layout.familyPosition[d].y + familyBoxSize.height / 4) {
+                kind = "family-child";
+            }
+            selectionLink = { source: { kind: kind, familyId: d }, cursorPosition: { x: event.x, y: event.y } };
             updateSelectionGraphics();
         }).on("drag", (event, d) => {
-            selectionLink = { source: { kind: "family-parent", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
+            selectionLink.cursorPosition = { x: event.x, y: event.y };
             updateSelectionGraphics();
         }).on("end", async (event, d) => {
             selectionLink.source = null;
-            if (hover != null) {
-                if (hover.kind == "person") {
-                    await model.attachParent(d, hover.personId);
+            let selected = findFunctionalEntityAtPoint(event.x, event.y);
+            if (selected != null) {
+                if (selected.kind == "person") {
+                    if (selectionLink.source.kind == "family-parent") {
+                        await model.attachParent(d, selected.personId);
+                    }
+                    if (selectionLink.source.kind == "family-child") {
+                        await model.attachChild(d, selected.personId);
+                    }
                     await updateAll();
                 }
             }
             await updateSelectionGraphics();
         }));
-        heart.on("mouseover", (event, d) => {
-            hover = { kind: "family-parent", familyId: d };
-        });
-        heart.on("mouseout", (event, d) => {
-            hover = null;
-        });
-        let childrenCircle = familyHook.append("g").attr("transform", (d) => {
-            return "translate(" + 0 + "," + (familyIconSize.height - familyChildrenCircleSize / 2) + ")";
-        })
-            .append("circle")
-            .style("stroke", () => "darkred")
-            .style("fill", () => "darkred")
-            .attr("r", () => 5);
-        childrenCircle.call(drag.on("start", (event, d) => {
-            selectionLink = { source: { kind: "family-child", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
-            updateSelectionGraphics();
-        }).on("drag", (event, d) => {
-            selectionLink = { source: { kind: "family-child", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
-            updateSelectionGraphics();
-        }).on("end", async (event, d) => {
-            selectionLink.source = null;
-            if (hover != null) {
-                if (hover.kind == "person") {
-                    await model.attachChild(d, hover.personId);
-                    await updateAll();
-                }
-            }
-            await updateSelectionGraphics();
-        }));
-        childrenCircle.on("mouseover", (event, d) => {
-            hover = { kind: "family-child", familyId: d };
-        });
-        childrenCircle.on("mouseout", (event, d) => {
-            hover = null;
-        });
         if (tools.debug()) {
             familyHook.append("text").text((d) => d);
         }
@@ -336,7 +335,7 @@ function updateGraphics() {
         .join(enter => {
         let personHook = enter.append("g")
             .attr("class", () => "person");
-        personHook.call(drag.on("start", (event, d) => {
+        personHook.call(d3.drag().on("start", (event, d) => {
             selectionLink = { source: { kind: "person", personId: d }, cursorPosition: { x: event.x, y: event.y } };
             updateSelectionGraphics();
         }).on("drag", (event, d) => {
@@ -344,31 +343,25 @@ function updateGraphics() {
             updateSelectionGraphics();
         }).on("end", async (event, d) => {
             selectionLink.source = null;
-            if (hover != null) {
-                if (hover.kind == "person") {
+            let selected = findFunctionalEntityAtPoint(event.x, event.y);
+            if (selected != null) {
+                if (selected.kind == "person") {
                     let newFamilyId = await model.newFamily();
-                    await model.attachParent(newFamilyId, hover.personId);
+                    await model.attachParent(newFamilyId, selected.personId);
                     await model.attachParent(newFamilyId, d);
                     await updateAll();
                 }
-                if (hover.kind == "family-child") {
-                    await model.attachChild(hover.familyId, d);
+                if (selected.kind == "family-child") {
+                    await model.attachChild(selected.familyId, d);
                     await updateAll();
                 }
-                if (hover.kind == "family-parent") {
-                    await model.attachParent(hover.familyId, d);
+                if (selected.kind == "family-parent") {
+                    await model.attachParent(selected.familyId, d);
                     await updateAll();
                 }
             }
             await updateSelectionGraphics();
         }));
-        // TODO: This doesn't work with touch input. This might need fixing.
-        personHook.on("mouseover", (event, d) => {
-            hover = { kind: "person", personId: d };
-        });
-        personHook.on("mouseout", (event, d) => {
-            hover = null;
-        });
         personHook.attr("transform", (d) => {
             return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")";
         });

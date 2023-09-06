@@ -33,11 +33,6 @@ export function recalculate() {
             }
             considered.add(id);
         }
-        // TODO: Make this slightly nicer, but just slight as this should be checked by the backend.
-        if (considered.size == 0) {
-            tools.log("There is a cycle in the data from the backend!");
-            break;
-        }
         // TODO: Figure out what to do with weird cases.
         // e.g. marrying you own child.
         // This would probably require calculating strongly connected components to make right.
@@ -55,6 +50,11 @@ export function recalculate() {
                     }
                 }
             }
+        }
+        // Consider tree cover, or things like: http://www.vldb.org/pvldb/vol7/p1191-wei.pdf
+        if (considered.size == 0) {
+            tools.log("There is a cycle in the data from the backend!");
+            break;
         }
         // considered now contains all the people that will appear in this layer.
         // Now attempt to create a layer out of those people, possibly adding constraints to layers above.
@@ -288,6 +288,7 @@ export function recalculate() {
         let current = firstLeftNotInLayout(personId);
         while (current != personId) {
             if (peopleInLayout.has(current)) {
+                current = constraints[current].right;
                 continue;
             }
             const locator = pushPersonIntoLayout(current);
@@ -298,6 +299,14 @@ export function recalculate() {
         }
         const locator = pushPersonIntoLayout(personId);
         pushed.push(locator);
+        while (constraints[personId].right != null) {
+            personId = constraints[personId].right;
+            if (peopleInLayout.has(personId)) {
+                continue;
+            }
+            const locator = pushPersonIntoLayout(personId);
+            pushed.push(locator);
+        }
         return pushed;
     }
     function pushFamilyChildrenIntoLayout(familyId) {
@@ -443,10 +452,6 @@ export function recalculate() {
                 continue;
             }
             pushPeopleIntoLayoutUntilPersonIsPushed(personId);
-            while (constraints[personId].right != null) {
-                personId = constraints[personId].right;
-                pushPeopleIntoLayoutUntilPersonIsPushed(personId);
-            }
             // TODO: Pushsmarter
             for (const partnerId of model.partners(personId)) {
                 if (personsLayer[partnerId] != personsLayer[personId]) {
@@ -620,9 +625,7 @@ export function recalculate() {
         tools.log("Layer " + i + " boxEnd: " + boxEnd);
         for (const node of layoutLayer) {
             let newBoxEnd = calculatePosition(node, boxEnd, i);
-            if (newBoxEnd != boxEnd) {
-                boxEnd = newBoxEnd + spaceBetweenPeople;
-            }
+            boxEnd = newBoxEnd + spaceBetweenPeople;
         }
         biggestBoxEnd = Math.max(boxEnd, biggestBoxEnd);
     }
