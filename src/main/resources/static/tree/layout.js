@@ -257,12 +257,15 @@ export function recalculate() {
     }
     let peopleInLayout = new Set();
     function familiesCompletedBy(personId) {
+        tools.log("PERSON " + personId);
         let result = [];
         for (const familyId of model.parentOfFamilies(personId)) {
-            const parents = model.familyParents(familyId);
+            const parentIds = model.familyParents(familyId);
             let completing = true;
-            for (const parent of parents) {
-                if (!peopleInLayout.has(parent) && parent != personId) {
+            for (const parentId of parentIds) {
+                tools.log("FAMILY: " + familyId);
+                tools.log("PARENT: " + parentId);
+                if (!peopleInLayout.has(parentId) && parentId != personId) {
                     completing = false;
                     break;
                 }
@@ -358,6 +361,8 @@ export function recalculate() {
                 previousPersonIdOrNull = previous.right.id;
             }
         }
+        tools.log("Person " + personId);
+        tools.log(familiesClassification);
         if (familiesClassification[2].length == 1 &&
             (previousPersonIdOrNull != null &&
                 model.familyParents(familiesClassification[2][0]).includes(previousPersonIdOrNull))) {
@@ -430,6 +435,8 @@ export function recalculate() {
             layout[0].push({ kind: "family", id: +familyId, depth: 0, members: pushed });
         }
     }
+    tools.log("CONSTRIANSTS: ");
+    tools.log(constraints);
     for (let layer of layers) {
         for (let personId of layer) {
             if (peopleInLayout.has(personId)) {
@@ -440,6 +447,7 @@ export function recalculate() {
                 personId = constraints[personId].right;
                 pushPeopleIntoLayoutUntilPersonIsPushed(personId);
             }
+            // TODO: Pushsmarter
             for (const partnerId of model.partners(personId)) {
                 if (personsLayer[partnerId] != personsLayer[personId]) {
                     continue;
@@ -473,7 +481,6 @@ export function recalculate() {
         }
         return true;
     }
-    // TODO: We need to work on the back fill!
     function calculatePosition(node, boxStart, layer) {
         if (node.kind == "person") {
             tools.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
@@ -595,6 +602,7 @@ export function recalculate() {
                 }
                 const memberNode = layout[member.layer][member.position];
                 boxEnd = calculatePosition(memberNode, boxEnd, member.layer);
+                tools.log("Setting layerBox " + member.layer + " " + boxEnd);
                 layerBox[member.layer] = Math.max(layerBox[member.layer], boxEnd);
             }
             familyPosition[node.id] = { x: (boxStart + boxEnd) / 2, y: layer * spaceBetweenLayers + node.depth * depthModifier };
@@ -609,15 +617,12 @@ export function recalculate() {
         if (boxEnd > 0) {
             boxEnd = boxEnd + spaceBetweenPeople;
         }
-        let first = true;
+        tools.log("Layer " + i + " boxEnd: " + boxEnd);
         for (const node of layoutLayer) {
-            if (first) {
-                first = false;
+            let newBoxEnd = calculatePosition(node, boxEnd, i);
+            if (newBoxEnd != boxEnd) {
+                boxEnd = newBoxEnd + spaceBetweenPeople;
             }
-            else {
-                boxEnd += spaceBetweenPeople;
-            }
-            boxEnd = calculatePosition(node, boxEnd, i);
         }
         biggestBoxEnd = Math.max(boxEnd, biggestBoxEnd);
     }

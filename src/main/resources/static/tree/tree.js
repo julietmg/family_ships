@@ -265,19 +265,19 @@ function updateGraphics() {
             selectionLink = { source: { kind: "family-parent", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
             updateSelectionGraphics();
         }).on("end", async (event, d) => {
+            selectionLink.source = null;
             if (hover != null) {
                 if (hover.kind == "person") {
                     await model.attachParent(d, hover.personId);
+                    await updateAll();
                 }
             }
-            selectionLink.source = null;
             await updateSelectionGraphics();
-            await updateAll();
         }));
-        heart.on("mouseover touchstart pointenter", (event, d) => {
+        heart.on("mouseover", (event, d) => {
             hover = { kind: "family-parent", familyId: d };
         });
-        heart.on("mouseout touchend pointerout touchend", (event, d) => {
+        heart.on("mouseout", (event, d) => {
             hover = null;
         });
         let childrenCircle = familyHook.append("g").attr("transform", (d) => {
@@ -294,19 +294,19 @@ function updateGraphics() {
             selectionLink = { source: { kind: "family-child", familyId: d }, cursorPosition: { x: event.x, y: event.y } };
             updateSelectionGraphics();
         }).on("end", async (event, d) => {
+            selectionLink.source = null;
             if (hover != null) {
                 if (hover.kind == "person") {
                     await model.attachChild(d, hover.personId);
+                    await updateAll();
                 }
             }
-            selectionLink.source = null;
             await updateSelectionGraphics();
-            await updateAll();
         }));
-        childrenCircle.on("mouseover touchstart pointenter pointenter", (event, d) => {
+        childrenCircle.on("mouseover", (event, d) => {
             hover = { kind: "family-child", familyId: d };
         });
-        childrenCircle.on("mouseout touchend pointerout", (event, d) => {
+        childrenCircle.on("mouseout", (event, d) => {
             hover = null;
         });
         if (tools.debug()) {
@@ -343,28 +343,30 @@ function updateGraphics() {
             selectionLink = { source: { kind: "person", personId: d }, cursorPosition: { x: event.x, y: event.y } };
             updateSelectionGraphics();
         }).on("end", async (event, d) => {
+            selectionLink.source = null;
             if (hover != null) {
                 if (hover.kind == "person") {
                     let newFamilyId = await model.newFamily();
                     await model.attachParent(newFamilyId, hover.personId);
                     await model.attachParent(newFamilyId, d);
+                    await updateAll();
                 }
                 if (hover.kind == "family-child") {
                     await model.attachChild(hover.familyId, d);
+                    await updateAll();
                 }
                 if (hover.kind == "family-parent") {
                     await model.attachParent(hover.familyId, d);
+                    await updateAll();
                 }
             }
-            console.log(event);
-            selectionLink.source = null;
             await updateSelectionGraphics();
-            await updateAll();
         }));
-        personHook.on("mouseover touchstart pointenter", (event, d) => {
+        // TODO: This doesn't work with touch input. This might need fixing.
+        personHook.on("mouseover", (event, d) => {
             hover = { kind: "person", personId: d };
         });
-        personHook.on("mouseout touchend pointerout", (event, d) => {
+        personHook.on("mouseout", (event, d) => {
             hover = null;
         });
         personHook.attr("transform", (d) => {

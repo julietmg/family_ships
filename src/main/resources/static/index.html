@@ -22,7 +22,7 @@
 
     <label class="switch">
         <!-- Add `checked` here to turn on debug mode. -->
-        <input type="checkbox" id="debug-switch">
+        <input type="checkbox" id="debug-switch" checked>
         <span class="slider round"></span>
     </label>
 
@@ -44,7 +44,7 @@
             <div>
                 Add person:
                 <form action="/model/new_person" method="POST">
-                    <input type="text" name="name" placeholder="Enter the person's name">
+                    <input type="text" name="spaceSeparatedNames" placeholder="Enter the person's name">
                     <input type="submit" value="Add">
                 </form>
             </div>
