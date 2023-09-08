@@ -140,7 +140,7 @@ function findFunctionalEntityAtPoint(x : number, y :number)  : FunctionalEntity 
             let kind : "family-parent" | "family-child" = "family-parent";
             // Dragging to/from bottom parts creates a child. 
             // Dragging to/from top parts creates a parent.
-            if(y > pos.y + familyBoxSize.height/2) {
+            if(y > pos.y + familyBoxSize.height/4) {
                 kind = "family-child";
             }
             closest = { kind: kind, familyId: +familyId};
@@ -241,6 +241,7 @@ function updateGraphics() {
     // -------------------------- Drawing parent paths --------------------------
 
     function parentPathPoints(parentId: number, familyId: number): Array<[number, number]> {
+        // TODO: Different path if the child is above.
         const source = layout.familyPosition[familyId];
         const target = layout.personsPosition[parentId];
         return [[source.x, source.y],

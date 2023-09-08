@@ -11,9 +11,134 @@ export let personsPosition: Record<number, Position> = {};
 export let familyPosition: Record<number, Position> = {};
 
 export function recalculate() {
+    // Reset the existing positions before recalculating
     personsPosition = {};
     familyPosition = {};
+
+    // -------------------------- Reachability in the graph --------------------------
+
+    function reachableRec(startId: number, endIds: Set<number>, visited: Set<number>) {
+        if (visited.has(startId)) {
+            return true;
+        }
+        visited.add(startId);
+        for (const childId of model.children(startId)) {
+            if (endIds.has(childId) || reachableRec(childId, endIds, visited)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // TODO: This might be possible to speed up.
+    // * http://www.vldb.org/pvldb/vol7/p1191-wei.pdf
+    // * https://stackoverflow.com/questions/3755439/efficient-database-query-for-ancestors-on-an-acyclic-directed-graph
+    // * https://www.slideshare.net/slidarko/graph-windycitydb2010 (a.k.a. gremlins)
+    // * https://www3.cs.stonybrook.edu/~bender/pub/JALG05-daglca.pdf - but LCA might be too specific
+    // Calculates whether any of the endIds are reachable from any of the startIds in the parent-child relationship graph.
+    function isAnyReachableFrom(startIds: Array<number>, endIds: Set<number>): boolean {
+        let visited: Set<number> = new Set();
+        for (const personId of startIds) {
+
+            if (reachableRec(personId, endIds, visited)) {
+                return true;
+            }
+        }
+        return false
+    }
+
+    function partnerClusterRec(personId: number, result: Set<number>) {
+        if (result.has(personId)) {
+            return;
+        }
+        result.add(personId);
+        for (const partnerId of model.partners(personId)) {
+            partnerClusterRec(partnerId, result);
+        }
+    }
+
+    function partnerCluster(personId: number): Set<number> {
+        let result: Set<number> = new Set();
+        partnerClusterRec(personId, result);
+        return result;
+    }
+
+
+    // -------------------------- Calculating strongly connected components --------------------------
+
+    // This uses Tarjan's algorithm
+    let sccs: Array<Array<number>> = [];
+    let personsSccNum: Record<number, number> = {}
+    let personsSccLow: Record<number, number> = {}
+    let sccVisited = new Set();
+    let sccProcessed = new Set();
+    let sccCounter = 0;
+    let sccStack: Array<number> = [];
+    function sccRec(personId: number) {
+        personsSccNum[personId] = sccCounter;
+        personsSccLow[personId] = sccCounter;
+        sccCounter += 1;
+        sccVisited.add(personId);
+        sccStack.push(personId);
+        for (const childId of model.children(personId)) {
+            if (!sccVisited.has(childId)) {
+                sccRec(childId);
+                personsSccLow[personId] = Math.min(personsSccLow[personId], personsSccLow[childId]);
+            } else if (!sccProcessed.has(childId)) {
+                personsSccLow[personId] = Math.min(personsSccLow[personId], personsSccNum[childId]);
+            }
+        }
+        sccProcessed.add(personId);
+        if (personsSccLow[personId] == personsSccNum[personId]) {
+            let scc = [];
+            let current = sccStack.pop();
+            while (current != personId) {
+                scc.push(current);
+                current = sccStack.pop();
+            }
+            scc.push(current);
+            sccs.push(scc);
+        }
+    }
+    for (const personId in model.people) {
+        if (sccVisited.has(+personId)) {
+            continue;
+        }
+        sccRec(+personId);
+    }
+
+    let personsSccIndex: Record<number, number> = {};
+    for (let i = 0; i < sccs.length; i += 1) {
+        const scc = sccs[i];
+        for (const personId of scc) {
+            personsSccIndex[personId] = i;
+        }
+    }
+
+    function parentsOfSet(peopleIds: Array<number>): Set<number> {
+        let result: Set<number> = new Set();
+        for (const personId of peopleIds) {
+            for (const parentId of model.parents(personId)) {
+                result.add(parentId);
+            }
+        }
+        return result;
+    }
+
+    function parentSccs(sccId: number): Set<number> {
+        let result: Set<number> = new Set();
+        for (const personId of parentsOfSet(sccs[sccId])) {
+            result.add(personsSccIndex[personId]);
+        }
+        return result;
+    }
+
+    tools.log("Sccs:");
+    tools.log(sccs);
+
     // -------------------------- Assigning people to layers --------------------------
+
 
     // Algorithm lays out people with layers, starting with people with no parents.
     let peopleWithUnassignedLayer: Set<number> = new Set();
@@ -29,46 +154,80 @@ export function recalculate() {
 
         // Get people that are not yet laid out, but for whose
         // all parents are laid out.
-        for (const id of peopleWithUnassignedLayer) {
+        for (const personId of peopleWithUnassignedLayer) {
             let hasNonLaidOutParents = false;
-            for (const parentId of model.parents(id)) {
-                if (peopleWithUnassignedLayer.has(parentId)) {
+            for (const parentId of model.parents(personId)) {
+                if (peopleWithUnassignedLayer.has(parentId) 
+                  && personsSccIndex[parentId] != personsSccIndex[personId]) {
                     hasNonLaidOutParents = true;
                     break;
                 }
             }
             // There is a special case of sibling, that don't have any parents.
-            if (hasNonLaidOutParents ||
-                (model.childOfFamilies(id).filter((familyId) => model.familyParents(familyId).length == 0).length > 0
-                    && layers.length == 0)) {
+            // Those should be in the second layer.
+            if (hasNonLaidOutParents) {
                 continue;
             }
-            considered.add(id);
+
+            if (model.childOfFamilies(personId).filter((familyId) => model.familyParents(familyId).length == 0).length > 0
+                && layers.length == 0) {
+                continue;
+            }
+            considered.add(personId);
         }
 
-        // TODO: Figure out what to do with weird cases.
-        // e.g. marrying you own child.
-        // This would probably require calculating strongly connected components to make right.
-        // And then we use the strongly connected component information to arbitrarly brake cycles.
+
+        if (considered.size == 0) {
+            tools.log("There is a cycle in the data from the backend!")
+            break;
+        }
+
+        const previousConsidered = new Set(considered);
+
         let changed = true;
         while (changed) {
             changed = false;
+
+            let throwOutConsidered = new Set();
             // Check whether their partners are also considered. 
             // Throw them away, if the partner still has parent constraints.
             for (const id of considered) {
-                for (const partnerId of model.partners(id)) {
-                    if (peopleWithUnassignedLayer.has(partnerId) && !considered.has(partnerId)) {
-                        changed = considered.delete(id) || changed;
-                        break;
+                if (throwOutConsidered.has(id)) {
+                    continue;
+                }
+                throwOutConsidered.add(id);
+                let personPartners = partnerCluster(id);
+
+                let consideredPartners = [];
+                let lowerLayersPartners: Set<number> = new Set();
+
+                for (const partnerId of personPartners) {
+                    if (considered.has(partnerId)) {
+                        consideredPartners.push(partnerId);
+                        throwOutConsidered.add(partnerId);
                     }
+                    else {
+                        lowerLayersPartners.add(partnerId);
+                    }
+                }
+
+                if (lowerLayersPartners.size == 0) {
+                    continue;
+                }
+
+                if (isAnyReachableFrom(consideredPartners, lowerLayersPartners)) {
+                    continue;
+                }
+
+                for (const id of consideredPartners) {
+                    changed = considered.delete(id) || changed;
                 }
             }
         }
 
-        // Consider tree cover, or things like: http://www.vldb.org/pvldb/vol7/p1191-wei.pdf
         if (considered.size == 0) {
-            tools.log("There is a cycle in the data from the backend!")
-            break;
+            tools.log("BUG: There is something weird with partner resolution.")
+            considered = previousConsidered;
         }
 
         // considered now contains all the people that will appear in this layer.
@@ -389,7 +548,7 @@ export function recalculate() {
             // otherwise we wouldn't find it when using firstLeftNotInLayout.
             current = constraints[current].right as number;
         }
-        
+
         const locator = pushPersonIntoLayout(personId);
         pushed.push(locator);
 
@@ -530,9 +689,9 @@ export function recalculate() {
                 layout[personsLayer[personId]].push(personSingleNode);
             }
         } else {
-            if (familiesClassification[2].length > 0) {
-                let pushed = pushFamilyChildrenIntoLayout(familiesClassification[2][0]);
-                let distantPartnerFamilyNode: FamilyLayoutNode = { kind: "family", id: familiesClassification[2][0], depth: depth, members: pushed };
+            for (const familyId of familiesClassification[2]) {
+                let pushed = pushFamilyChildrenIntoLayout(familyId);
+                let distantPartnerFamilyNode: FamilyLayoutNode = { kind: "family", id: familyId, depth: depth, members: pushed };
                 multiParentFamilyNodes.push(distantPartnerFamilyNode);
             }
             let personSingleNode: PersonLayoutNode = { kind: "person", id: personId, singleParentFamilies: singleParentFamilyNodes, multiParentFamilyNodes: multiParentFamilyNodes };
@@ -560,7 +719,7 @@ export function recalculate() {
                 continue;
             }
             pushPeopleIntoLayoutUntilPersonIsPushed(personId);
-            
+
             // TODO: Pushsmarter
             for (const partnerId of model.partners(personId)) {
                 if (personsLayer[partnerId] != personsLayer[personId]) {
@@ -719,9 +878,9 @@ export function recalculate() {
         tools.log("Layer " + i + " boxEnd: " + boxEnd);
         for (const node of layoutLayer) {
             let newBoxEnd = calculatePosition(node, boxEnd, i);
-            
-                boxEnd = newBoxEnd + spaceBetweenPeople;
-            
+
+            boxEnd = newBoxEnd + spaceBetweenPeople;
+
         }
         biggestBoxEnd = Math.max(boxEnd, biggestBoxEnd);
     }
