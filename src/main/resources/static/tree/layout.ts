@@ -635,7 +635,8 @@ export function recalculate() {
 
     const spaceBetweenLayers = 160.0;
     const spaceBetweenPeople = 300.0;
-    const depthModifier = 60.0;
+    const depthFamilyBase = 60.0;
+    const depthModifier = 20.0;
 
     function isEmptyFamily(familyNode: FamilyLayoutNode) {
         return familyNode.members.length == 0;
@@ -749,7 +750,8 @@ export function recalculate() {
                 tools.log("Setting layerBox " + member.layer + " " + boxEnd);
                 layerBox[member.layer] = Math.max(layerBox[member.layer], boxEnd);
             }
-            familyPosition[node.id] = { x: (boxStart + boxEnd) / 2, y: layer * spaceBetweenLayers + node.depth * depthModifier };
+            const depth = depthFamilyBase + node.depth * depthModifier;
+            familyPosition[node.id] = { x: (boxStart + boxEnd) / 2, y: layer * spaceBetweenLayers + depth };
             tools.log("Done with " + node.kind + " " + node.id + " " + boxEnd + " y pos of family is " + familyPosition[node.id].y);
 
             return boxEnd;
