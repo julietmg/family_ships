@@ -6,124 +6,6 @@ export function recalculate() {
     // Reset the existing positions before recalculating
     personsPosition = {};
     familyPosition = {};
-    // -------------------------- Reachability in the graph --------------------------
-    function reachableRec(startId, endIds, visited) {
-        if (visited.has(startId)) {
-            return true;
-        }
-        visited.add(startId);
-        for (const childId of model.children(startId)) {
-            if (endIds.has(childId) || reachableRec(childId, endIds, visited)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    // TODO: This might be possible to speed up.
-    // * http://www.vldb.org/pvldb/vol7/p1191-wei.pdf
-    // * https://stackoverflow.com/questions/3755439/efficient-database-query-for-ancestors-on-an-acyclic-directed-graph
-    // * https://www.slideshare.net/slidarko/graph-windycitydb2010 (a.k.a. gremlins)
-    // * https://www3.cs.stonybrook.edu/~bender/pub/JALG05-daglca.pdf - but LCA might be too specific
-    // Calculates whether any of the endIds are reachable from any of the startIds in the parent-child relationship graph.
-    function isAnyReachableFrom(startIds, endIds) {
-        let visited = new Set();
-        for (const personId of startIds) {
-            if (reachableRec(personId, endIds, visited)) {
-                console.log("YES");
-                return true;
-            }
-        }
-        console.log("NO");
-        return false;
-    }
-    function partnerClusterRec(personId, result) {
-        if (result.has(personId)) {
-            return;
-        }
-        result.add(personId);
-        for (const partnerId of model.partners(personId)) {
-            partnerClusterRec(partnerId, result);
-        }
-    }
-    function partnerCluster(personId) {
-        let result = new Set();
-        partnerClusterRec(personId, result);
-        return result;
-    }
-    // -------------------------- Calculating strongly connected components --------------------------
-    // This uses Tarjan's algorithm
-    let sccs = [];
-    let personsSccNum = {};
-    let personsSccLow = {};
-    let sccVisited = new Set();
-    let sccProcessed = new Set();
-    let sccCounter = 0;
-    let sccStack = [];
-    function sccRec(personId) {
-        personsSccNum[personId] = sccCounter;
-        personsSccLow[personId] = sccCounter;
-        sccCounter += 1;
-        sccVisited.add(personId);
-        sccStack.push(personId);
-        console.log("VISIT");
-        console.log(personId);
-        console.log(personsSccNum[personId] + " " + personsSccLow[personId]);
-        console.log(model.children(personId));
-        for (const childId of model.children(personId)) {
-            if (!sccVisited.has(childId)) {
-                sccRec(childId);
-                personsSccLow[personId] = Math.min(personsSccLow[personId], personsSccLow[childId]);
-            }
-            else if (!sccProcessed.has(childId)) {
-                personsSccLow[personId] = Math.min(personsSccLow[personId], personsSccNum[childId]);
-            }
-        }
-        sccProcessed.add(personId);
-        console.log("PROCESS");
-        console.log(personId);
-        console.log(personsSccNum[personId] + " " + personsSccLow[personId]);
-        if (personsSccLow[personId] == personsSccNum[personId]) {
-            let scc = [];
-            let current = sccStack.pop();
-            while (current != personId) {
-                scc.push(current);
-                current = sccStack.pop();
-            }
-            scc.push(current);
-            sccs.push(scc);
-        }
-    }
-    for (const personId in model.people) {
-        if (sccVisited.has(+personId)) {
-            continue;
-        }
-        sccRec(+personId);
-    }
-    let personsSccIndex = {};
-    for (let i = 0; i < sccs.length; i += 1) {
-        const scc = sccs[i];
-        for (const personId of scc) {
-            personsSccIndex[personId] = i;
-        }
-    }
-    function parentsOfSet(peopleIds) {
-        let result = new Set();
-        for (const personId of peopleIds) {
-            for (const parentId of model.parents(personId)) {
-                result.add(parentId);
-            }
-        }
-        return result;
-    }
-    function parentSccs(sccId) {
-        let result = new Set();
-        for (const personId of parentsOfSet(sccs[sccId])) {
-            result.add(personsSccIndex[personId]);
-        }
-        return result;
-    }
-    console.log("Sccs:");
-    console.log(sccs);
     // -------------------------- Assigning people to layers --------------------------
     // Algorithm lays out people with layers, starting with people with no parents.
     let peopleWithUnassignedLayer = new Set();
@@ -136,11 +18,14 @@ export function recalculate() {
         let considered = new Set();
         // Get people that are not yet laid out, but for whose
         // all parents are laid out.
+        // If the parent is in the same strongly connected component, then
+        // this doesn't disqualify a person from being considered. 
+        // This is to avoid cycles in the parent-child graph ruining our layout algorithm.
         for (const personId of peopleWithUnassignedLayer) {
             let hasNonLaidOutParents = false;
             for (const parentId of model.parents(personId)) {
                 if (peopleWithUnassignedLayer.has(parentId)
-                    && personsSccIndex[parentId] != personsSccIndex[personId]) {
+                    && model.personsScc[parentId] != model.personsScc[personId]) {
                     hasNonLaidOutParents = true;
                     break;
                 }
@@ -150,6 +35,8 @@ export function recalculate() {
             if (hasNonLaidOutParents) {
                 continue;
             }
+            // This is a special case, where we have families, that have no parents assigned. 
+            // Children of those families should not appear in the first layer.
             if (model.childOfFamilies(personId).filter((familyId) => model.familyParents(familyId).length == 0).length > 0
                 && layers.length == 0) {
                 continue;
@@ -157,22 +44,28 @@ export function recalculate() {
             considered.add(personId);
         }
         if (considered.size == 0) {
-            tools.log("There is a cycle in the data from the backend!");
+            tools.log("BUG: We couldn't neatly assing people to layers. Some people might be missing from the graph.");
             break;
         }
         const previousConsidered = new Set(considered);
+        // We will now iterate throwing out people that have partners outside of the considered set.
+        // This might require more than one iteration, so we repeat that process until there are no
+        // more changes.
+        // Basically a fixed point calculation.
         let changed = true;
         while (changed) {
             changed = false;
+            // This ensures we are considering throwing out people only once in this pass.
+            // That's because we process partners of a person together with the person being analysed.
             let throwOutConsidered = new Set();
-            // Check whether their partners are also considered. 
-            // Throw them away, if the partner still has parent constraints.
+            // Make sure the partners of all people in the considered set are also considered.
+            // If that's not the case, then delay adding them to a layer until all partners are added.
             for (const id of considered) {
                 if (throwOutConsidered.has(id)) {
                     continue;
                 }
                 throwOutConsidered.add(id);
-                let personPartners = partnerCluster(id);
+                let personPartners = model.partnerCluster(id);
                 let consideredPartners = [];
                 let lowerLayersPartners = new Set();
                 for (const partnerId of personPartners) {
@@ -184,28 +77,24 @@ export function recalculate() {
                         lowerLayersPartners.add(partnerId);
                     }
                 }
-                console.log("CONSIDERED PARTNERS:");
-                console.log(consideredPartners);
-                console.log("KICK OUT TARGETS: ");
-                console.log(lowerLayersPartners);
                 if (lowerLayersPartners.size == 0) {
                     continue;
                 }
-                if (isAnyReachableFrom(consideredPartners, lowerLayersPartners)) {
+                if (model.isAnyReachableFrom(consideredPartners, lowerLayersPartners)) {
                     continue;
                 }
                 for (const id of consideredPartners) {
-                    console.log("KICKING OFF: " + id);
                     changed = considered.delete(id) || changed;
                 }
             }
         }
+        // If we fail, we want to fail semi-gently, so we just go back to the assignment from 
+        // before the process of throwing out people.
         if (considered.size == 0) {
             tools.log("BUG: There is something weird with partner resolution.");
             considered = previousConsidered;
         }
         // considered now contains all the people that will appear in this layer.
-        // Now attempt to create a layer out of those people, possibly adding constraints to layers above.
         let layer = [];
         for (const id of considered) {
             peopleWithUnassignedLayer.delete(id);
@@ -622,7 +511,7 @@ export function recalculate() {
     }
     const spaceBetweenLayers = 160.0;
     const spaceBetweenPeople = 300.0;
-    const depthModifier = 50.0;
+    const depthModifier = 60.0;
     function isEmptyFamily(familyNode) {
         return familyNode.members.length == 0;
     }

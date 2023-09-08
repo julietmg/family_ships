@@ -175,6 +175,7 @@ function updateGraphics() {
     const line = d3.line();
     // -------------------------- Drawing parent paths --------------------------
     function parentPathPoints(parentId, familyId) {
+        // TODO: Different path if the child is above.
         const source = layout.familyPosition[familyId];
         const target = layout.personsPosition[parentId];
         return [[source.x, source.y],

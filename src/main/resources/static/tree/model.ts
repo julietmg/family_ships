@@ -36,6 +36,8 @@ export async function reload() {
     tools.log("Reloaded model data.");
     tools.log(families);
     tools.log(people);
+
+    recalculateStronglyConnectedComponents();
 }
 
 export async function newPerson(spaceSeparatedNames : string) : Promise<PersonId> {
@@ -140,7 +142,7 @@ export async function setNames(personId : PersonId, spaceSeparatedNames : string
         })}).then(data => data.json());
 }
 
-// -------------------------- Utility functions to access the data prepared in the section above --------------------------
+// -------------------------- Utility functions to conveniently access the data prepared in the section above --------------------------
 export function familyChildren(familyId: FamilyId): Array<PersonId>  {
     return families[familyId].childrenIds;
 }
@@ -206,7 +208,7 @@ export function children(personId: PersonId)  : Array<PersonId>  {
     return result;
 }
 
-export function parentOfFamilies(personId: number) {
+export function parentOfFamilies(personId: PersonId) {
     let result = [];
     const person = people[personId];
     for (const familyId of person.parentOfFamilyIds) {
@@ -216,7 +218,7 @@ export function parentOfFamilies(personId: number) {
     return result;
 }
 
-export function childOfFamilies(personId: number) {
+export function childOfFamilies(personId: PersonId) {
     let result = [];
     const person = people[personId];
     for (const familyId of person.childOfFamiliesIds) {
@@ -226,11 +228,10 @@ export function childOfFamilies(personId: number) {
     return result;
 }
 
-// --------------------------  Utility functions that are handy when creating constraints --------------------------
 
 // Singleton families are the ones this person is the sole
 // parent of.
-export function parentOfSingleFamilies(personId: number) {
+export function parentOfSingleFamilies(personId: PersonId) {
     let result = [];
     for (const familyId of parentOfFamilies(personId)) {
         let parents = familyParents(familyId);
@@ -242,6 +243,115 @@ export function parentOfSingleFamilies(personId: number) {
     return result;
 }
 
-export function isSingleParent(personId: number) {
+export function isSingleParent(personId: PersonId) {
     return parentOfSingleFamilies(personId).length > 0;
+}
+
+ // -------------------------- Reachability in the parent-child graph --------------------------
+
+ // TODO: This might be possible to speed up.
+// * http://www.vldb.org/pvldb/vol7/p1191-wei.pdf
+// * https://stackoverflow.com/questions/3755439/efficient-database-query-for-ancestors-on-an-acyclic-directed-graph
+// * https://www.slideshare.net/slidarko/graph-windycitydb2010 (a.k.a. gremlins)
+// * https://www3.cs.stonybrook.edu/~bender/pub/JALG05-daglca.pdf - but LCA might be too specific
+ function reachableRec(startId: PersonId, endIds: Set<PersonId>, visited: Set<PersonId>) {
+    if (visited.has(startId)) {
+        return true;
+    }
+    visited.add(startId);
+    for (const childId of children(startId)) {
+        if (endIds.has(childId) || reachableRec(childId, endIds, visited)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Calculates whether any of the endIds are reachable from any of the startIds in the parent-child relationship graph.
+export function isAnyReachableFrom(startIds: Array<PersonId>, endIds: Set<PersonId>): boolean {
+    let visited: Set<number> = new Set();
+    for (const personId of startIds) {
+        if (reachableRec(personId, endIds, visited)) {
+            return true;
+        }
+    }
+    return false
+}
+
+
+// -------------------------- Calculating strongly connected components of the parent-child graph --------------------------
+
+export let personsScc: Record<number, number> = {};
+
+function recalculateStronglyConnectedComponents() {
+    // Reset the existing personsScc.
+    personsScc = {}
+
+    // This uses Tarjan's algorithm
+    let sccs: Array<Array<number>> = [];
+    let personsSccNum: Record<number, number> = {}
+    let personsSccLow: Record<number, number> = {}
+    let sccVisited = new Set();
+    let sccProcessed = new Set();
+    let sccCounter = 0;
+    let sccStack: Array<number> = [];
+    function sccRec(personId: number) {
+        personsSccNum[personId] = sccCounter;
+        personsSccLow[personId] = sccCounter;
+        sccCounter += 1;
+        sccVisited.add(personId);
+        sccStack.push(personId);
+        for (const childId of children(personId)) {
+            if (!sccVisited.has(childId)) {
+                sccRec(childId);
+                personsSccLow[personId] = Math.min(personsSccLow[personId], personsSccLow[childId]);
+            } else if (!sccProcessed.has(childId)) {
+                personsSccLow[personId] = Math.min(personsSccLow[personId], personsSccNum[childId]);
+            }
+        }
+        sccProcessed.add(personId);
+        if (personsSccLow[personId] == personsSccNum[personId]) {
+            let scc = [];
+            let current = sccStack.pop();
+            while (current != personId) {
+                scc.push(current);
+                current = sccStack.pop();
+            }
+            scc.push(current);
+            sccs.push(scc);
+        }
+    }
+    for (const personId in people) {
+        if (sccVisited.has(+personId)) {
+            continue;
+        }
+        sccRec(+personId);
+    }
+
+    for (let i = 0; i < sccs.length; i += 1) {
+        const scc = sccs[i];
+        for (const personId of scc) {
+            personsScc[personId] = i;
+        }
+    }
+}
+
+// -------------------------- Partner cluster calculation --------------------------
+
+function partnerClusterRec(personId: number, result: Set<number>) {
+    if (result.has(personId)) {
+        return;
+    }
+    result.add(personId);
+    for (const partnerId of partners(personId)) {
+        partnerClusterRec(partnerId, result);
+    }
+}
+
+// Gives all the elements that are reachable from personId in the partner graph
+export function partnerCluster(personId: number): Set<number> {
+    let result: Set<number> = new Set();
+    partnerClusterRec(personId, result);
+    return result;
 }
