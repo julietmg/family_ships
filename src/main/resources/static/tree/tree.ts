@@ -5,9 +5,6 @@ import * as tools from "./tools.js";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
 
-
-// TODO: Add a lock, which will hide all the functional buttons.
-
 // Showcase the icons that we have in the debug mode.
 if (tools.debug()) {
     function showDebugIcon(path: string) {
@@ -95,6 +92,7 @@ async function updateData() {
 }
 
 let peopleToDrawDeleteButtonOn = new Set();
+let familiesToDrawDeleteButtonOn = new Set();
 
 // -------------------------- Tweakable constants for drawing things --------------------------
 
@@ -148,22 +146,29 @@ function findFunctionalEntityAtPoint(x: number, y: number): FunctionalEntity | n
 }
 
 async function functionalEntityConnectionAction(source: FunctionalEntity, target: FunctionalEntity) {
+    if (source.kind == target.kind) {
+        if (source.kind == "person") {
+            if (peopleToDrawDeleteButtonOn.has(source.personId)) {
+                peopleToDrawDeleteButtonOn.delete(source.personId);
+            } else {
+                peopleToDrawDeleteButtonOn.add(source.personId);
+            }
+            updateGraphics();
+        } else {
+            if (familiesToDrawDeleteButtonOn.has(source.familyId)) {
+                familiesToDrawDeleteButtonOn.delete(source.familyId);
+            } else {
+                familiesToDrawDeleteButtonOn.add(source.familyId);
+            }
+            updateGraphics();
+        }
+    }
     if (source.kind != "person") {
         if (target.kind != "person") {
             return;
         }
-        functionalEntityConnectionAction(target, source);
+        await functionalEntityConnectionAction(target, source);
         return;
-    }
-    if (target.kind == "person" && target.personId == source.personId) {
-        if (peopleToDrawDeleteButtonOn.has(source.personId)) {
-            console.log("DELETING!");
-            peopleToDrawDeleteButtonOn.delete(source.personId);
-        } else {
-            console.log("ADDING!");
-            peopleToDrawDeleteButtonOn.add(source.personId);
-        }
-        await updateGraphics();
     }
     if (target.kind == "person" && target.personId != source.personId) {
         let newFamilyId = await model.newFamily();
@@ -227,6 +232,9 @@ function updateSelectionGraphics() {
         );
 }
 
+let personsDrawnPosition: Record<number, { x: number, y: number }> = {}
+let familyDrawnPosition: Record<number, { x: number, y: number }> = {}
+
 
 function updateGraphics() {
     let maxX = 0;
@@ -246,7 +254,7 @@ function updateGraphics() {
     svg.attr("width", margin.left + personBoxSize.width / 2 + maxX + margin.right);
     svg.attr("height", margin.top + personBoxSize.height / 2 + maxY + margin.bottom);
 
-    // -------------------------- Utilities for drawing things --------------------------
+    // -------------------------- Utilities for drawing lines nicely --------------------------
 
     function pathLength(path: Array<[number, number]>) {
         let length = 0;
@@ -271,22 +279,20 @@ function updateGraphics() {
 
     // -------------------------- Drawing parent paths --------------------------
 
-    function parentPathPoints(parentId: number, familyId: number): Array<[number, number]> {
-        const source = layout.familyPosition[familyId];
-        const target = layout.personsPosition[parentId];
-        let sign = Math.sign(source.x - target.x);
-        if (source.y == target.y) {
-            return [[source.x - sign * familyBoxSize.width / 2, source.y], [target.x + sign * personBoxSize.width / 2, target.y]];
+    function parentPathPoints(parentPos: { x: number, y: number }, familyPos: { x: number, y: number }): Array<[number, number]> {
+        let sign = Math.sign(familyPos.x - parentPos.x);
+        if (familyPos.y == parentPos.y) {
+            return [[familyPos.x - sign * familyBoxSize.width / 2, familyPos.y], [parentPos.x + sign * personBoxSize.width / 2, parentPos.y]];
         }
-        if (source.y < target.y) {
-            return [[source.x - sign * familyBoxSize.width / 2, source.y],
-            [target.x + sign * personBoxSize.width / 2, source.y],
-            [target.x + sign * personBoxSize.width / 2, target.y]];
+        if (familyPos.y < parentPos.y) {
+            return [[familyPos.x - sign * familyBoxSize.width / 2, familyPos.y],
+            [parentPos.x + sign * personBoxSize.width / 2, familyPos.y],
+            [parentPos.x + sign * personBoxSize.width / 2, parentPos.y]];
 
         }
-        return [[source.x - sign * familyBoxSize.width / 2, source.y],
-        [target.x, source.y],
-        [target.x, target.y + personBoxSize.height / 2]];
+        return [[familyPos.x - sign * familyBoxSize.width / 2, familyPos.y],
+        [parentPos.x, familyPos.y],
+        [parentPos.x, parentPos.y + personBoxSize.height / 2]];
     }
 
     function parentPathDeleteButtonPosition(parentId: number, familyId: number): { x: number, y: number } {
@@ -298,20 +304,30 @@ function updateGraphics() {
         return { x: target.x - deleteButtonSize.width / 2, y: target.y + (personBoxSize.height / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.height / 2 };
     }
 
+    function posEqual(a: { x: number, y: number }, b: { x: number, y: number }): boolean {
+        return a.x == b.x && a.y == b.y;
+    }
+
     g.selectAll(".parent").data(parentLinks, (d: { parentId: number, familyId: number }) => d.parentId + "parent" + d.familyId)
         .join(
             enter => {
-
                 let parentLinkHook = enter.append("g").attr("class", () => "parent");
                 let parentPath = parentLinkHook.append("path");
                 parentPath.style("stroke", () => "grey").style("fill", () => "none");
                 parentPath
+                    .transition().delay(500)
                     .attr("d", (d: { parentId: number, familyId: number }) =>
-                        line(parentPathPoints(d.parentId, d.familyId)))
+                        line(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId])))
                     .attr("stroke-dasharray", (d: { parentId: number, familyId: number }) =>
-                        fadePathStrokeBeforeTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dasharray"])
+                        fadePathStrokeBeforeTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
                     .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
-                        fadePathStrokeBeforeTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dashoffset"]);
+                        fadePathStrokeBeforeTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dashoffset"])
+                    .transition().delay(1000)
+                    .transition().duration(1500)
+                    .attr("stroke-dasharray", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dashoffset"]);
 
                 parentLinkHook.append("image")
                     .attr("xlink:href", "icons/delete.svg")
@@ -319,6 +335,7 @@ function updateGraphics() {
                     .attr("y", (d: { parentId: number, familyId: number }) => parentPathDeleteButtonPosition(d.parentId, d.familyId).y)
                     .attr("width", () => deleteButtonSize.width)
                     .attr("height", () => deleteButtonSize.height)
+                    .style("opacity", 0).attr("display", "none")
                     .on("click", async (event, d: { parentId: number, familyId: number }) => {
                         await model.detachParent(d.familyId, d.parentId);
                         await updateAll();
@@ -327,16 +344,44 @@ function updateGraphics() {
                 return parentLinkHook;
             },
             update => {
-                update.select("path").transition().attr("d", (d: { parentId: number, familyId: number }) =>
-                    line(parentPathPoints(d.parentId, d.familyId)))
+                let changedPosition = update.filter((d) => !posEqual(personsDrawnPosition[d.parentId], layout.personsPosition[d.parentId]) ||
+                    !posEqual(familyDrawnPosition[d.familyId], layout.familyPosition[d.familyId]));
+                // TODO: Verify if path is different. We need the previous path here!
+                changedPosition.select("path")
+                    .transition().duration(500)
                     .attr("stroke-dasharray", (d: { parentId: number, familyId: number }) =>
-                        fadePathStrokeAfterTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dasharray"])
+                        fadePathStrokeBeforeTransition(parentPathPoints(personsDrawnPosition[d.parentId], familyDrawnPosition[d.familyId]))["stroke-dasharray"])
                     .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
-                        fadePathStrokeAfterTransition(parentPathPoints(d.parentId, d.familyId))["stroke-dashoffset"])
-                update.select("image").transition().attr("x", (d: { parentId: number, familyId: number }) =>
-                    parentPathDeleteButtonPosition(d.parentId, d.familyId).x)
+                        fadePathStrokeBeforeTransition(parentPathPoints(personsDrawnPosition[d.parentId], familyDrawnPosition[d.familyId]))["stroke-dashoffset"])
+                    .transition().delay(0)
+                    .attr("display", "none")
+                    .attr("d", (d: { parentId: number, familyId: number }) => line(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId])))
+                    .attr("stroke-dasharray", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dashoffset"])
+                    .transition().delay(1000)
+                    .attr("display", null)
+                    .transition().duration(1500)
+                    .attr("stroke-dasharray", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dashoffset"])
+                
+                changedPosition 
+                    .select("image")
+                    .attr("x", (d: { parentId: number, familyId: number }) => {
+                        return parentPathDeleteButtonPosition(d.parentId, d.familyId).x;})
                     .attr("y", (d: { parentId: number, familyId: number }) =>
-                        parentPathDeleteButtonPosition(d.parentId, d.familyId).y)
+                        parentPathDeleteButtonPosition(d.parentId, d.familyId).y);
+
+                // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+                update.filter((d) => !peopleToDrawDeleteButtonOn.has(d.parentId)).select("image")
+                    .transition().duration(500).style("opacity", 0);
+                update.filter((d) => !peopleToDrawDeleteButtonOn.has(d.parentId)).select("image")
+                    .transition().delay(500).attr("display", "none");
+                update.filter((d) => peopleToDrawDeleteButtonOn.has(d.parentId)).select("image").attr("display", null)
+                    .transition().duration(500).style("opacity", 1);
                 return update;
             },
             exit => exit.remove()
@@ -344,22 +389,20 @@ function updateGraphics() {
 
     // -------------------------- Drawing children paths --------------------------
 
-    function childPathPoints(childId: number, familyId: number): Array<[number, number]> {
-        const source = layout.familyPosition[familyId];
-        const target = layout.personsPosition[childId];
-        if (source.y > target.y) {
-            return [[source.x, source.y],
-            [source.x, source.y + 20],
-            [target.x + personBoxSize.width, source.y + 20],
-            [target.x + personBoxSize.width, target.y - personBoxSize.height / 2 - 40],
-            [target.x, target.y - personBoxSize.height / 2 - 40],
-            [target.x, target.y - personBoxSize.height / 2]];
+    function childPathPoints(childPos: { x: number, y: number }, familyPos: { x: number, y: number }): Array<[number, number]> {
+        if (familyPos.y > childPos.y) {
+            return [[familyPos.x, familyPos.y],
+            [familyPos.x, familyPos.y + 20],
+            [childPos.x + personBoxSize.width, familyPos.y + 20],
+            [childPos.x + personBoxSize.width, childPos.y - personBoxSize.height / 2 - 40],
+            [childPos.x, childPos.y - personBoxSize.height / 2 - 40],
+            [childPos.x, childPos.y - personBoxSize.height / 2]];
         }
-        const midHeight = (source.y + target.y) / 2;
-        return [[source.x, source.y + familyBoxSize.height / 2],
-        [source.x, midHeight],
-        [target.x, midHeight],
-        [target.x, target.y - personBoxSize.height / 2]];
+        const midHeight = (familyPos.y + childPos.y) / 2;
+        return [[familyPos.x, familyPos.y + familyBoxSize.height / 2],
+        [familyPos.x, midHeight],
+        [childPos.x, midHeight],
+        [childPos.x, childPos.y - personBoxSize.height / 2]];
     }
 
     function childPathDeleteButtonPosition(childId: number, familyId: number): { x: number, y: number } {
@@ -375,13 +418,20 @@ function updateGraphics() {
                 let childPath = childLinkHook.append("path");
                 childPath.style("stroke", () => "grey").style("fill", () => "none");
                 childPath
+                    .transition().delay(500)
                     .attr("d", (d: { childId: number, familyId: number }) =>
-                        line(childPathPoints(d.childId, d.familyId))
+                        line(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))
                     )
                     .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
-                        fadePathStrokeBeforeTransition(childPathPoints(d.childId, d.familyId))["stroke-dasharray"])
+                        fadePathStrokeBeforeTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
                     .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
-                        fadePathStrokeBeforeTransition(childPathPoints(d.childId, d.familyId))["stroke-dashoffset"]);
+                        fadePathStrokeBeforeTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dashoffset"])
+                    .transition().delay(1000)
+                    .transition().duration(1500)
+                    .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dashoffset"]);
 
                 childLinkHook.append("image")
                     .attr("xlink:href", "icons/delete.svg")
@@ -389,6 +439,7 @@ function updateGraphics() {
                     .attr("y", (d: { childId: number, familyId: number }) => childPathDeleteButtonPosition(d.childId, d.familyId).y)
                     .attr("width", () => deleteButtonSize.width)
                     .attr("height", () => deleteButtonSize.height)
+                    .style("opacity", 0).attr("display", "none")
                     .on("click", async (event, d: { childId: number, familyId: number }) => {
                         await model.detachChild(d.familyId, d.childId);
                         await updateAll();
@@ -398,15 +449,48 @@ function updateGraphics() {
                 return childLinkHook;
             },
             update => {
-                update.select("path").transition()
-                    .attr("d", (d: { childId: number, familyId: number }) => line(childPathPoints(d.childId, d.familyId)))
-                    .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
-                        fadePathStrokeAfterTransition(childPathPoints(d.childId, d.familyId))["stroke-dasharray"])
-                    .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
-                        fadePathStrokeAfterTransition(childPathPoints(d.childId, d.familyId))["stroke-dashoffset"]);
+                let changedPosition = update.filter((d) => !posEqual(personsDrawnPosition[d.childId], layout.personsPosition[d.childId]) ||
+                    !posEqual(familyDrawnPosition[d.familyId], layout.familyPosition[d.familyId]));
 
-                update.select("image").transition().attr("x", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).x)
-                    .attr("y", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).y);
+                changedPosition.select("path")
+                    .transition().duration(500)
+                    .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(childPathPoints(personsDrawnPosition[d.childId], familyDrawnPosition[d.familyId]))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(childPathPoints(personsDrawnPosition[d.childId], familyDrawnPosition[d.familyId]))["stroke-dashoffset"])
+                    .transition().delay(0)
+                    .attr("display", "none")
+                    .attr("d", (d: { childId: number, familyId: number }) => line(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId])))
+                    .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeBeforeTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dashoffset"])
+                    .transition().delay(1000)
+                    .attr("display", null)
+                    .transition().duration(1500)
+                    .attr("stroke-dasharray", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
+                    .attr("stroke-dashoffset", (d: { childId: number, familyId: number }) =>
+                        fadePathStrokeAfterTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dashoffset"]);
+
+                update
+                    .select("image")
+                    .transition().duration(500)
+                    .style("opacity", 0)
+                    .transition().delay(0)
+                    .attr("x", (d) => 
+                        childPathDeleteButtonPosition(d.childId, d.familyId).x)
+                    .attr("y", (d) => 
+                        childPathDeleteButtonPosition(d.childId, d.familyId).y)
+                    .transition().delay(1000);
+
+                // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+                update.filter((d) => !peopleToDrawDeleteButtonOn.has(d.childId)).select("image")
+                    .transition().duration(500).style("opacity", 0);
+                update.filter((d) => !peopleToDrawDeleteButtonOn.has(d.childId)).select("image")
+                    .transition().delay(500).attr("display", "none");
+                update.filter((d) => peopleToDrawDeleteButtonOn.has(d.childId)).select("image").attr("display", null)
+                    .transition().duration(500).style("opacity", 1);
 
                 return update;
             }
@@ -430,7 +514,9 @@ function updateGraphics() {
                 let familyHook = enter.append("g").attr("class", () => "family");
                 familyHook.attr("transform", (d) => {
                     return "translate(" + layout.familyPosition[+d].x + "," + layout.familyPosition[+d].y + ")"
-                });
+                }).style("opacity", 0)
+                    .transition().delay(500)
+                    .transition().duration(1500).style("opacity", 1);
 
                 let heart = familyHook.append("image")
                     .attr("xlink:href", "icons/red_heart.svg")
@@ -439,7 +525,7 @@ function updateGraphics() {
                     .attr("width", () => familyIconSize.width)
                     .attr("height", () => familyIconSize.height);
 
-                heart.call(d3.drag().on("start", (event, d: number) => {
+                familyHook.call(d3.drag().on("start", (event, d: number) => {
                     let kind: "family-parent" | "family-child" = "family-parent";
                     if (event.y > layout.familyPosition[d].y + familyIconSize.height / 4) {
                         kind = "family-child"
@@ -450,11 +536,12 @@ function updateGraphics() {
                     selectionLink.cursorPosition = { x: event.x, y: event.y };
                     updateSelectionGraphics();
                 }).on("end", async (event, d: number) => {
+                    console.log(selectionLink.source);
                     const source = selectionLink.source;
                     selectionLink.source = null;
                     let selected = findFunctionalEntityAtPoint(event.x, event.y);
                     if (selected != null) {
-                        functionalEntityConnectionAction(source, selectionLink.source);
+                        functionalEntityConnectionAction(source, selected);
                     }
                     await updateSelectionGraphics();
                 }));
@@ -463,7 +550,9 @@ function updateGraphics() {
                     familyHook.append("text").text((d: number) => d);
                 }
 
-                let familyDeleteButton = familyHook.append("g");
+                let familyDeleteButton = familyHook.append("g")
+                    .attr("class", () => "person_delete_button")
+                    .style("opacity", 0).attr("display", "none");;
 
                 familyDeleteButton.append("image").attr("xlink:href", "icons/heart.svg")
                     .attr("x", (d) => familyDeleteButtonOffset(d).dx - deleteButtonSize.width / 2)
@@ -486,9 +575,27 @@ function updateGraphics() {
 
                 return familyHook;
             },
-            update => update.transition().attr("transform", (d) => {
-                return "translate(" + layout.familyPosition[+d].x + "," + layout.familyPosition[+d].y + ")"
-            }),
+            update => {
+                let changedPosition = update.filter((d) => !posEqual(familyDrawnPosition[d], layout.familyPosition[d]));
+
+                changedPosition.
+                    transition().duration(500)
+                    .style("opacity", 0)
+                    .transition().delay(0)
+                    .attr("transform", (d) => {
+                        return "translate(" + layout.familyPosition[+d].x + "," + layout.familyPosition[+d].y + ")"
+                    }).transition().duration(1500).style("opacity", 1)
+
+                // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+                update.filter((d) => !familiesToDrawDeleteButtonOn.has(d)).select("g")
+                    .transition().duration(500).style("opacity", 0);
+                update.filter((d) => !familiesToDrawDeleteButtonOn.has(d)).select("g")
+                    .transition().delay(500).attr("display", "none");
+                update.filter((d) => familiesToDrawDeleteButtonOn.has(d)).select("g").attr("display", null)
+                    .transition().duration(500).style("opacity", 1);
+
+                return update;
+            },
             exit => exit.remove()
         );
 
@@ -531,8 +638,9 @@ function updateGraphics() {
                     .style("font-size", "24px")
                     .attr("font-family", "Dancing Script");
 
-                let personDeleteButton = personHook.append("g").style("opacity", 1)
-                    .attr("class", () => "person_delete_button");
+                let personDeleteButton = personHook.append("g")
+                    .attr("class", () => "person_delete_button")
+                    .style("opacity", 0).attr("display", "none");
 
                 personDeleteButton.append("image").attr("xlink:href", "icons/person_off.svg")
                     .attr("x", () => personDeleteButtonOffset.dx - deleteButtonSize.width / 2)
@@ -555,20 +663,33 @@ function updateGraphics() {
                 update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select("g")
                     .transition().delay(500).attr("display", "none");
                 update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select("g").attr("display", null)
-                .transition().duration(500).style("opacity", 1);
+                    .transition().duration(500).style("opacity", 1);
 
-                return update.transition().duration(2000).attr("transform", (d: number) => {
+                return update.transition().delay(500).transition().duration(1000).attr("transform", (d: number) => {
                     return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")"
                 });
             }
         );
+
+    personsDrawnPosition = {};
+    familyDrawnPosition = {};
+    for (const personId in layout.personsPosition) {
+        const position = layout.personsPosition[personId];
+        personsDrawnPosition[personId] = { x: position.x, y: position.y };
+    }
+
+    for (const familyId in layout.familyPosition) {
+        const position = layout.familyPosition[familyId];
+        familyDrawnPosition[familyId] = { x: position.x, y: position.y };
+    }
 
 }
 
 
 async function updateAll() {
     await updateData();
-    updateGraphics();
+    peopleToDrawDeleteButtonOn = new Set();
+    familiesToDrawDeleteButtonOn = new Set();
     updateGraphics();
 }
 

@@ -277,11 +277,11 @@ export function recalculate() {
                 if (filledConstraints.has(constraint)) {
                     continue;
                 }
-                if (addLeftConstraint(id, partnerId)) {
+                if (addLeftConstraint(partnerId, id)) {
                     filledConstraints.add(constraint);
                     continue;
                 }
-                if (addLeftConstraint(partnerId, id)) {
+                if (addLeftConstraint(id, partnerId)) {
                     filledConstraints.add(constraint);
                     continue;
                 }
