@@ -138,8 +138,7 @@
             $(".authenticated").show();
             let script = document.createElement('script');
             script.type = "module";
-            script.src = "./tree/tree.js";
-            script.value = 'import { updateGraphics } from "./tree/tree.js"; window.updateGraphics = updateGraphics;';
+            script.textContent = 'import { updateGraphics } from "./tree/tree.js"; window.updateGraphics = updateGraphics;';
             document.body.appendChild(script);
         });
 
