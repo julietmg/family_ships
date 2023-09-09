@@ -3,6 +3,7 @@ package com.familyships.FamilyShips;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -199,15 +200,17 @@ public class ModelController {
     // Input: personId, spaceSeparatedNames
     // Output: set
     @PostMapping("/model/set_names")
-    public @ResponseBody boolean detachParent(@RequestParam Integer personId,
+    public @ResponseBody boolean setNames(@RequestParam Integer personId,
             @RequestParam String spaceSeparatedNames,
             Principal principal) {
-        List<String> names = Arrays.asList(spaceSeparatedNames.split(" "));
+        List<String> names = new ArrayList<String>(List.of(spaceSeparatedNames.split(" ")));
         Optional<Person> maybePerson = personRepository.findById(personId);
         if (!maybePerson.isPresent()) {
             return false;
         }
-        maybePerson.get().setNames(names);
+        Person person = maybePerson.get();
+        person.setNames(names);
+        personRepository.save(person);
         return true;
     }
 }

@@ -32,6 +32,7 @@ if (tools.debug()) {
     showDebugIcon("icons/child_bottle.svg");
     showDebugIcon("icons/add_parent.svg");
     showDebugIcon("icons/partner.svg");
+    showDebugIcon("icons/save.svg");
 }
 
 // -------------------------- Add new person button --------------------------
@@ -109,8 +110,10 @@ const familyBoxSize = { width: 28, height: 28 };
 const familyIconSize = { width: 24, height: 24 };
 const familyChildrenCircleSize = 16;
 
-const personDeleteButtonOffset = { dx: 10, dy: -30 };
-const personAddPartnerButtonOffset = { dx: -10, dy: -30 };
+const personDeleteButtonOffset = { dx: -personBoxSize.width / 2 + 5, dy: -personBoxSize.height / 2 - 10 };
+const personAddPartnerButtonOffset = { dx: -personBoxSize.width / 2 + 30, dy: -personBoxSize.height / 2 - 10 };
+const personSaveChangesButtonOffset = { dx: -personBoxSize.width / 2 + 55, dy: -personBoxSize.height / 2 - 10 };
+
 
 const buttonSize = { width: 15, height: 15 };
 const deleteButtonDistanceFromPerson = 10;
@@ -244,7 +247,7 @@ let personsDrawnPosition: Record<number, { x: number, y: number }> = {}
 let familyDrawnPosition: Record<number, { x: number, y: number }> = {}
 
 
-function updateGraphics() {
+export function updateGraphics() {
     let maxX = 0;
     let maxY = 0;
     for (const personId in layout.personsPosition) {
@@ -629,7 +632,8 @@ function updateGraphics() {
                     .transition().duration(500).style("opacity", 0);
                 update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_delete_button")
                     .transition().delay(500).attr("display", "none");
-                update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_delete_button").attr("display", null)
+                update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_delete_button")
+                    .transition().delay(0).attr("display", null)
                     .transition().duration(500).style("opacity", 1);
 
                 // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
@@ -637,13 +641,20 @@ function updateGraphics() {
                     .transition().duration(500).style("opacity", 0);
                 update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_add_child_button")
                     .transition().delay(500).attr("display", "none");
-                update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_add_child_button").attr("display", null)
+                update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_add_child_button")
+                    .transition().delay(0).attr("display", null)
                     .transition().duration(500).style("opacity", 1);
 
                 return update;
             },
             exit => exit.remove()
         );
+
+    // -------------------------- Drawing people nodes --------------------------
+    
+    function personNameBoxTag(d: number): string {
+        return 'name_' + d;
+    }
 
     g.selectAll(".person").data(personNodes, (d: number) => d)
         .join(
@@ -665,24 +676,38 @@ function updateGraphics() {
                     if (selected != null) {
                         functionalEntityConnectionAction(source, selected);
                     }
-                    await updateSelectionGraphics();
+                    updateSelectionGraphics();
                 }));
 
                 personHook.attr("transform", (d: number) => {
                     return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")"
                 });
 
-                personHook.append("text")
-                    .style("text-anchor",
-                        () => "middle")
-                    .text((d: any) => {
-                        if (tools.debug()) {
-                            return d;
+                personHook.append("foreignObject")
+                    .attr("x", -personBoxSize.width / 2)
+                    .attr("y", -personBoxSize.height / 2)
+                    .attr("width", personBoxSize.width)
+                    .attr("height", personBoxSize.height)
+                    .html(function (d) {
+                        let textAreaStyleAttrs: Record<string, string> = {};
+                        textAreaStyleAttrs["font-size"] = "24px";
+                        textAreaStyleAttrs["font-family"] = "Dancing Script";
+                        textAreaStyleAttrs["text-align"] = "Center";
+                        textAreaStyleAttrs["width"] = "" + personBoxSize.width + "px";
+                        textAreaStyleAttrs["resize"] = "none";
+                        textAreaStyleAttrs["border"] = "none";
+                        textAreaStyleAttrs["background"] = "transparent";
+                        textAreaStyleAttrs["outline"] = "none";
+                        let styleString = "";
+                        for (const attr in textAreaStyleAttrs) {
+                            styleString += attr + ":" + textAreaStyleAttrs[attr];
+                            styleString += ";";
                         }
-                        return model.people[+d].names[0];
-                    })
-                    .style("font-size", "24px")
-                    .attr("font-family", "Dancing Script");
+                        return '<textarea oninput="updateGraphics()" style="' + styleString + '" rows="2" id="' + personNameBoxTag(d) + '">' +
+                            model.people[+d].names.join(' ') +
+                            '</textarea>';
+                    });
+
 
                 let personDeleteButton = personHook.append("g")
                     .attr("class", () => "person_delete_button")
@@ -720,6 +745,28 @@ function updateGraphics() {
                     await updateAll();
                 }
                 );
+
+                let personSaveChangedNameButton = personHook.append("g")
+                    .attr("class", () => "person_save_changes_button")
+                    .style("opacity", 0).attr("display", "none");
+
+                personSaveChangedNameButton.append("image").attr("xlink:href", "icons/save.svg")
+                    .attr("x", () => personSaveChangesButtonOffset.dx - buttonSize.width / 2)
+                    .attr("y", () => personSaveChangesButtonOffset.dy - buttonSize.height / 2)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height);
+
+
+                personSaveChangedNameButton.on("click", async (event, d) => {
+                    let boxData = document.getElementById(personNameBoxTag(d)) as HTMLTextAreaElement;
+                    let namesInBox = boxData.value.split(/\s+/);
+                    let normalizedNames = namesInBox.join(' ');
+                    if (normalizedNames != model.people[d].names.join(' ')) {
+                        await model.setNames(d, normalizedNames);
+                        await updateAll();
+                    }
+                }
+                );
                 return personHook;
             },
             update => {
@@ -728,7 +775,8 @@ function updateGraphics() {
                     .transition().duration(500).style("opacity", 0);
                 update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select(".person_delete_button")
                     .transition().delay(500).attr("display", "none");
-                update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select(".person_delete_button").attr("display", null)
+                update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select(".person_delete_button")
+                    .transition().delay(0).attr("display", null)
                     .transition().duration(500).style("opacity", 1);
 
 
@@ -737,7 +785,24 @@ function updateGraphics() {
                     .transition().duration(500).style("opacity", 0);
                 update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select(".person_add_partner_button")
                     .transition().delay(500).attr("display", "none");
-                update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select(".person_add_partner_button").attr("display", null)
+                update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select(".person_add_partner_button")
+                    .transition().delay(0).attr("display", null)
+                    .transition().duration(500).style("opacity", 1);
+
+                function inputContainsDifferentName(d : number) {
+                    let boxData = document.getElementById(personNameBoxTag(d)) as HTMLTextAreaElement;
+                    let namesInBox = boxData.value.split(/\s+/);
+                    let normalizedNames = namesInBox.join(' ');
+                    return normalizedNames != model.people[d].names.join(' ');
+                }
+
+                // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+                update.filter((d) => !inputContainsDifferentName(d)).select(".person_save_changes_button")
+                    .transition().duration(500).style("opacity", 0);
+                update.filter((d) => !inputContainsDifferentName(d)).select(".person_save_changes_button")
+                    .transition().delay(500).attr("display", "none");
+                update.filter((d) => inputContainsDifferentName(d)).select(".person_save_changes_button")
+                    .transition().delay(0).attr("display", null)
                     .transition().duration(500).style("opacity", 1);
 
                 return update.transition().delay(500).transition().duration(1000).attr("transform", (d: number) => {
@@ -769,5 +834,6 @@ async function updateAll() {
 }
 
 updateAll();
+
 
 

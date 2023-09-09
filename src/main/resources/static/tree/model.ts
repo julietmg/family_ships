@@ -131,7 +131,7 @@ export async function detachParent(familyId : FamilyId, parentId : PersonId) : P
 }
 
 export async function setNames(personId : PersonId, spaceSeparatedNames : string) : Promise<boolean> {
-    return await fetch("/model/detach_parent",{
+    return await fetch("/model/set_names",{
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'

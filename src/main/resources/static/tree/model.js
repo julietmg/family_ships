@@ -109,7 +109,7 @@ export async function detachParent(familyId, parentId) {
     }).then(data => data.json());
 }
 export async function setNames(personId, spaceSeparatedNames) {
-    return await fetch("/model/detach_parent", {
+    return await fetch("/model/set_names", {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
