@@ -30,33 +30,37 @@ if (tools.debug()) {
     showDebugIcon("icons/heart.svg");
     showDebugIcon("icons/person_off.svg");
     showDebugIcon("icons/child_bottle.svg");
-    showDebugIcon("icons/add_parent.svg");  
-    showDebugIcon("icons/partner.svg");  
+    showDebugIcon("icons/add_parent.svg");
+    showDebugIcon("icons/partner.svg");
 }
 
 // -------------------------- Add new person button --------------------------
 
-const addPersonSvg = d3.select("body").append("svg")
-    .attr("width", 100)
-    .attr("height", 100).append("g").append("image")
-    .attr("xlink:href", "icons/add_person.svg")
-    .attr("x", () => 10)
-    .attr("y", () => 10)
-    .attr("width", () => 80)
-    .attr("height", () => 80)
-    .on("click", async (event, d) => {
-        const newPersonId = await model.newPerson("Name");
-        tools.log("Added a new person " + newPersonId);
-        await updateAll();
-    });
+// const addPersonSvg = d3.select("body").append("svg")
+//     .attr("width", 100)
+//     .attr("height", 100).append("g").append("image")
+//     .attr("xlink:href", "icons/add_person.svg")
+//     .attr("x", () => 10)
+//     .attr("y", () => 10)
+//     .attr("width", () => 80)
+//     .attr("height", () => 80)
+//     .on("click", async (event, d) => {
+//         const newPersonId = await model.newPerson("Name");
+//         tools.log("Added a new person " + newPersonId);
+//         await updateAll();
+//     });
 
-const margin = { top: 150, right: 100, bottom: 100, left: 150 };
 const svg = d3.select("body").append("svg")
-    .attr("width", margin.left + margin.right)
-    .attr("height", margin.top + margin.bottom);
-const g = svg.append("g")
-    .attr("transform",
-        "translate(" + margin.left + "," + margin.top + ")");
+    .attr("width", "100%")
+    .attr("height", "100%").style("background", "#e5deca");;
+
+svg.call(d3.zoom()
+    .on('zoom', (e) => {
+        d3.select('svg g')
+            .attr('transform', e.transform);
+    }));
+
+const g = svg.append("g");
 
 // -------------------------- Data points that trigger draws --------------------------
 
@@ -255,9 +259,6 @@ function updateGraphics() {
         }
     }
 
-    svg.attr("width", margin.left + personBoxSize.width / 2 + maxX + margin.right);
-    svg.attr("height", margin.top + personBoxSize.height / 2 + maxY + margin.bottom);
-
     // -------------------------- Utilities for drawing lines nicely --------------------------
 
     function pathLength(path: Array<[number, number]>) {
@@ -371,11 +372,12 @@ function updateGraphics() {
                         fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dasharray"])
                     .attr("stroke-dashoffset", (d: { parentId: number, familyId: number }) =>
                         fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dashoffset"])
-                
-                changedPosition 
+
+                changedPosition
                     .select("image")
                     .attr("x", (d: { parentId: number, familyId: number }) => {
-                        return parentPathDeleteButtonPosition(d.parentId, d.familyId).x;})
+                        return parentPathDeleteButtonPosition(d.parentId, d.familyId).x;
+                    })
                     .attr("y", (d: { parentId: number, familyId: number }) =>
                         parentPathDeleteButtonPosition(d.parentId, d.familyId).y);
 
@@ -482,9 +484,9 @@ function updateGraphics() {
                     .transition().duration(500)
                     .style("opacity", 0)
                     .transition().delay(0)
-                    .attr("x", (d) => 
+                    .attr("x", (d) =>
                         childPathDeleteButtonPosition(d.childId, d.familyId).x)
-                    .attr("y", (d) => 
+                    .attr("y", (d) =>
                         childPathDeleteButtonPosition(d.childId, d.familyId).y)
                     .transition().delay(1000);
 
@@ -630,13 +632,13 @@ function updateGraphics() {
                 update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_delete_button").attr("display", null)
                     .transition().duration(500).style("opacity", 1);
 
-                    // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+                // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
                 update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_add_child_button")
-                .transition().duration(500).style("opacity", 0);
+                    .transition().duration(500).style("opacity", 0);
                 update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_add_child_button")
-                .transition().delay(500).attr("display", "none");
+                    .transition().delay(500).attr("display", "none");
                 update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_add_child_button").attr("display", null)
-                .transition().duration(500).style("opacity", 1);
+                    .transition().duration(500).style("opacity", 1);
 
                 return update;
             },
@@ -700,24 +702,24 @@ function updateGraphics() {
                 );
 
                 let personAddPartnerButton = personHook.append("g")
-                .attr("class", () => "person_add_partner_button")
-                .style("opacity", 0).attr("display", "none");
+                    .attr("class", () => "person_add_partner_button")
+                    .style("opacity", 0).attr("display", "none");
 
-            personAddPartnerButton.append("image").attr("xlink:href", "icons/partner.svg")
-                .attr("x", () => personAddPartnerButtonOffset.dx - buttonSize.width / 2)
-                .attr("y", () => personAddPartnerButtonOffset.dy - buttonSize.height / 2)
-                .attr("width", () => buttonSize.width)
-                .attr("height", () => buttonSize.height);
+                personAddPartnerButton.append("image").attr("xlink:href", "icons/partner.svg")
+                    .attr("x", () => personAddPartnerButtonOffset.dx - buttonSize.width / 2)
+                    .attr("y", () => personAddPartnerButtonOffset.dy - buttonSize.height / 2)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height);
 
 
-            personAddPartnerButton.on("click", async (event, d) => {
-                let familyId = await model.newFamily();
-                let partner = await model.newPerson("Partner");
-                await model.attachParent(familyId, partner);
-                await model.attachParent(familyId, d);
-                await updateAll();
-            }
-            );
+                personAddPartnerButton.on("click", async (event, d) => {
+                    let familyId = await model.newFamily();
+                    let partner = await model.newPerson("Partner");
+                    await model.attachParent(familyId, partner);
+                    await model.attachParent(familyId, d);
+                    await updateAll();
+                }
+                );
                 return personHook;
             },
             update => {
