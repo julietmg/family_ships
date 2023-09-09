@@ -29,6 +29,8 @@ if (tools.debug()) {
     showDebugIcon("icons/heart_minus.svg");
     showDebugIcon("icons/heart.svg");
     showDebugIcon("icons/person_off.svg");
+    showDebugIcon("icons/child_bottle.svg");
+    showDebugIcon("icons/add_parent.svg");    
 }
 
 // -------------------------- Add new person button --------------------------
@@ -92,7 +94,7 @@ async function updateData() {
 }
 
 let peopleToDrawDeleteButtonOn = new Set();
-let familiesToDrawDeleteButtonOn = new Set();
+let familiesToDrawButtonsOn = new Set();
 
 // -------------------------- Tweakable constants for drawing things --------------------------
 
@@ -104,7 +106,7 @@ const familyChildrenCircleSize = 16;
 
 const personDeleteButtonOffset = { dx: 0, dy: -30 };
 
-const deleteButtonSize = { width: 15, height: 15 };
+const buttonSize = { width: 15, height: 15 };
 const deleteButtonDistanceFromPerson = 10;
 
 
@@ -155,10 +157,10 @@ async function functionalEntityConnectionAction(source: FunctionalEntity, target
             }
             updateGraphics();
         } else {
-            if (familiesToDrawDeleteButtonOn.has(source.familyId)) {
-                familiesToDrawDeleteButtonOn.delete(source.familyId);
+            if (familiesToDrawButtonsOn.has(source.familyId)) {
+                familiesToDrawButtonsOn.delete(source.familyId);
             } else {
-                familiesToDrawDeleteButtonOn.add(source.familyId);
+                familiesToDrawButtonsOn.add(source.familyId);
             }
             updateGraphics();
         }
@@ -299,9 +301,9 @@ function updateGraphics() {
         const source = layout.familyPosition[familyId];
         const target = layout.personsPosition[parentId];
         if (target.y == source.y) {
-            return { x: +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.width / 2, y: target.y - deleteButtonSize.height / 2 };
+            return { x: +target.x + Math.sign(source.x - target.x) * (personBoxSize.width / 2 + deleteButtonDistanceFromPerson) - buttonSize.width / 2, y: target.y - buttonSize.height / 2 };
         }
-        return { x: target.x - deleteButtonSize.width / 2, y: target.y + (personBoxSize.height / 2 + deleteButtonDistanceFromPerson) - deleteButtonSize.height / 2 };
+        return { x: target.x - buttonSize.width / 2, y: target.y + (personBoxSize.height / 2 + deleteButtonDistanceFromPerson) - buttonSize.height / 2 };
     }
 
     function posEqual(a: { x: number, y: number }, b: { x: number, y: number }): boolean {
@@ -333,8 +335,8 @@ function updateGraphics() {
                     .attr("xlink:href", "icons/delete.svg")
                     .attr("x", (d: { parentId: number, familyId: number }) => parentPathDeleteButtonPosition(d.parentId, d.familyId).x)
                     .attr("y", (d: { parentId: number, familyId: number }) => parentPathDeleteButtonPosition(d.parentId, d.familyId).y)
-                    .attr("width", () => deleteButtonSize.width)
-                    .attr("height", () => deleteButtonSize.height)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height)
                     .style("opacity", 0).attr("display", "none")
                     .on("click", async (event, d: { parentId: number, familyId: number }) => {
                         await model.detachParent(d.familyId, d.parentId);
@@ -408,7 +410,7 @@ function updateGraphics() {
     function childPathDeleteButtonPosition(childId: number, familyId: number): { x: number, y: number } {
         const source = layout.familyPosition[familyId];
         const target = layout.personsPosition[childId];
-        return { x: target.x - deleteButtonSize.width / 2, y: target.y - deleteButtonDistanceFromPerson - personBoxSize.height / 2 - deleteButtonSize.height / 2 };
+        return { x: target.x - buttonSize.width / 2, y: target.y - deleteButtonDistanceFromPerson - personBoxSize.height / 2 - buttonSize.height / 2 };
     }
 
     g.selectAll(".child").data(childrenLinks, (d: { childId: number, familyId: number }) => d.childId + "child" + d.familyId)
@@ -437,8 +439,8 @@ function updateGraphics() {
                     .attr("xlink:href", "icons/delete.svg")
                     .attr("x", (d: { childId: number, familyId: number }) => childPathDeleteButtonPosition(d.childId, d.familyId).x)
                     .attr("y", (d: { childId: number, familyId: number }) => childPathDeleteButtonPosition(d.childId, d.familyId).y)
-                    .attr("width", () => deleteButtonSize.width)
-                    .attr("height", () => deleteButtonSize.height)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height)
                     .style("opacity", 0).attr("display", "none")
                     .on("click", async (event, d: { childId: number, familyId: number }) => {
                         await model.detachChild(d.familyId, d.childId);
@@ -501,11 +503,17 @@ function updateGraphics() {
     // -------------------------- Drawing family nodes --------------------------
 
     function familyDeleteButtonOffset(d: number): { dx: number, dy: number } {
-        console.log(d);
         if (model.familyParents(d).length == 1) {
-            return { dx: 25, dy: 0 };
+            return { dx: 25, dy: 10 };
         }
-        return { dx: 0, dy: -25 };
+        return { dx: 10, dy: -25 };
+    }
+
+    function familyAddChildButtonOffset(d: number): { dx: number, dy: number } {
+        if (model.familyParents(d).length == 1) {
+            return { dx: 25, dy: -10 };
+        }
+        return { dx: -10, dy: -25 };
     }
 
     g.selectAll(".family").data(familyNodes, (d: number) => d)
@@ -551,24 +559,50 @@ function updateGraphics() {
                 }
 
                 let familyDeleteButton = familyHook.append("g")
-                    .attr("class", () => "person_delete_button")
+                    .attr("class", () => "family_delete_button")
                     .style("opacity", 0).attr("display", "none");;
 
                 familyDeleteButton.append("image").attr("xlink:href", "icons/heart.svg")
-                    .attr("x", (d) => familyDeleteButtonOffset(d).dx - deleteButtonSize.width / 2)
-                    .attr("y", (d) => familyDeleteButtonOffset(d).dy - deleteButtonSize.height / 2)
-                    .attr("width", () => deleteButtonSize.width)
-                    .attr("height", () => deleteButtonSize.height);
+                    .attr("x", (d) => familyDeleteButtonOffset(d).dx - buttonSize.width / 2)
+                    .attr("y", (d) => familyDeleteButtonOffset(d).dy - buttonSize.height / 2)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height);
 
                 familyDeleteButton.append("image")
                     .attr("xlink:href", "icons/delete.svg")
-                    .attr("x", (d) => familyDeleteButtonOffset(d).dx - deleteButtonSize.width / 2)
-                    .attr("y", (d) => familyDeleteButtonOffset(d).dy - deleteButtonSize.height / 2)
-                    .attr("width", () => deleteButtonSize.width)
-                    .attr("height", () => deleteButtonSize.height);
+                    .attr("x", (d) => familyDeleteButtonOffset(d).dx - buttonSize.width / 2)
+                    .attr("y", (d) => familyDeleteButtonOffset(d).dy - buttonSize.height / 2)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height);
+
 
                 familyDeleteButton.on("click", async (event, d) => {
                     await model.deleteFamily(d);
+                    await updateAll();
+                }
+                );
+
+                let familyAddChildButton = familyHook.append("g")
+                    .attr("class", () => "family_add_child_button")
+                    .style("opacity", 0).attr("display", "none");;
+
+                familyAddChildButton.append("image").attr("xlink:href", "icons/child_bottle.svg")
+                    .attr("x", (d) => familyAddChildButtonOffset(d).dx - buttonSize.width / 2)
+                    .attr("y", (d) => familyAddChildButtonOffset(d).dy - buttonSize.height / 2)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height);
+
+                familyAddChildButton.append("image")
+                    .attr("xlink:href", "icons/plus.svg")
+                    .attr("x", (d) => familyAddChildButtonOffset(d).dx - buttonSize.width / 2 - 4)
+                    .attr("y", (d) => familyAddChildButtonOffset(d).dy - buttonSize.height / 2)
+                    .attr("width", () => 8)
+                    .attr("height", () => 8);
+
+
+                familyAddChildButton.on("click", async (event, d) => {
+                    let childId = await model.newPerson("Child");
+                    await model.attachChild(d, childId);
                     await updateAll();
                 }
                 );
@@ -587,12 +621,20 @@ function updateGraphics() {
                     }).transition().duration(1500).style("opacity", 1)
 
                 // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
-                update.filter((d) => !familiesToDrawDeleteButtonOn.has(d)).select("g")
+                update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_delete_button")
                     .transition().duration(500).style("opacity", 0);
-                update.filter((d) => !familiesToDrawDeleteButtonOn.has(d)).select("g")
+                update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_delete_button")
                     .transition().delay(500).attr("display", "none");
-                update.filter((d) => familiesToDrawDeleteButtonOn.has(d)).select("g").attr("display", null)
+                update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_delete_button").attr("display", null)
                     .transition().duration(500).style("opacity", 1);
+
+                    // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+                update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_add_child_button")
+                .transition().duration(500).style("opacity", 0);
+                update.filter((d) => !familiesToDrawButtonsOn.has(d)).select(".family_add_child_button")
+                .transition().delay(500).attr("display", "none");
+                update.filter((d) => familiesToDrawButtonsOn.has(d)).select(".family_add_child_button").attr("display", null)
+                .transition().duration(500).style("opacity", 1);
 
                 return update;
             },
@@ -643,10 +685,10 @@ function updateGraphics() {
                     .style("opacity", 0).attr("display", "none");
 
                 personDeleteButton.append("image").attr("xlink:href", "icons/person_off.svg")
-                    .attr("x", () => personDeleteButtonOffset.dx - deleteButtonSize.width / 2)
-                    .attr("y", () => personDeleteButtonOffset.dy - deleteButtonSize.height / 2)
-                    .attr("width", () => deleteButtonSize.width)
-                    .attr("height", () => deleteButtonSize.height);
+                    .attr("x", () => personDeleteButtonOffset.dx - buttonSize.width / 2)
+                    .attr("y", () => personDeleteButtonOffset.dy - buttonSize.height / 2)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height);
 
 
                 personDeleteButton.on("click", async (event, d) => {
@@ -689,7 +731,7 @@ function updateGraphics() {
 async function updateAll() {
     await updateData();
     peopleToDrawDeleteButtonOn = new Set();
-    familiesToDrawDeleteButtonOn = new Set();
+    familiesToDrawButtonsOn = new Set();
     updateGraphics();
 }
 
