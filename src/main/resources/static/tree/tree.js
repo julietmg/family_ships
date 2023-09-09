@@ -28,6 +28,7 @@ if (tools.debug()) {
     showDebugIcon("icons/child_bottle.svg");
     showDebugIcon("icons/add_parent.svg");
     showDebugIcon("icons/plus.svg");
+    showDebugIcon("icons/partner.svg");
 }
 // -------------------------- Add new person button --------------------------
 const addPersonSvg = d3.select("body").append("svg")
@@ -85,7 +86,8 @@ const personBoxSize = { width: 150, height: 80 };
 const familyBoxSize = { width: 28, height: 28 };
 const familyIconSize = { width: 24, height: 24 };
 const familyChildrenCircleSize = 16;
-const personDeleteButtonOffset = { dx: 0, dy: -30 };
+const personDeleteButtonOffset = { dx: 10, dy: -30 };
+const personAddPartnerButtonOffset = { dx: -10, dy: -30 };
 const buttonSize = { width: 15, height: 15 };
 const deleteButtonDistanceFromPerson = 10;
 let selectionLink = { source: null, cursorPosition: { x: 0, y: 0 } };
@@ -543,14 +545,36 @@ function updateGraphics() {
             await model.deletePerson(d);
             await updateAll();
         });
+        let personAddPartnerButton = personHook.append("g")
+            .attr("class", () => "person_add_partner_button")
+            .style("opacity", 0).attr("display", "none");
+        personAddPartnerButton.append("image").attr("xlink:href", "icons/partner.svg")
+            .attr("x", () => personAddPartnerButtonOffset.dx - buttonSize.width / 2)
+            .attr("y", () => personAddPartnerButtonOffset.dy - buttonSize.height / 2)
+            .attr("width", () => buttonSize.width)
+            .attr("height", () => buttonSize.height);
+        personAddPartnerButton.on("click", async (event, d) => {
+            let familyId = await model.newFamily();
+            let partner = await model.newPerson("Partner");
+            await model.attachParent(familyId, partner);
+            await model.attachParent(familyId, d);
+            await updateAll();
+        });
         return personHook;
     }, update => {
         // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
-        update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select("g")
+        update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select(".person_delete_button")
             .transition().duration(500).style("opacity", 0);
-        update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select("g")
+        update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select(".person_delete_button")
             .transition().delay(500).attr("display", "none");
-        update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select("g").attr("display", null)
+        update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select(".person_delete_button").attr("display", null)
+            .transition().duration(500).style("opacity", 1);
+        // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+        update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select(".person_add_partner_button")
+            .transition().duration(500).style("opacity", 0);
+        update.filter((d) => !peopleToDrawDeleteButtonOn.has(d)).select(".person_add_partner_button")
+            .transition().delay(500).attr("display", "none");
+        update.filter((d) => peopleToDrawDeleteButtonOn.has(d)).select(".person_add_partner_button").attr("display", null)
             .transition().duration(500).style("opacity", 1);
         return update.transition().delay(500).transition().duration(1000).attr("transform", (d) => {
             return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")";
