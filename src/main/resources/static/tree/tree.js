@@ -31,29 +31,28 @@ if (tools.debug()) {
     showDebugIcon("icons/save.svg");
 }
 // -------------------------- Add new person button --------------------------
-// const addPersonSvg = d3.select("body").append("svg")
-//     .attr("width", 100)
-//     .attr("height", 100).append("g").append("image")
-//     .attr("xlink:href", "icons/add_person.svg")
-//     .attr("x", () => 10)
-//     .attr("y", () => 10)
-//     .attr("width", () => 80)
-//     .attr("height", () => 80)
-//     .on("click", async (event, d) => {
-//         const newPersonId = await model.newPerson("Name");
-//         tools.log("Added a new person " + newPersonId);
-//         await updateAll();
-//     });
-const svg = d3.select("body").append("svg")
+const addPersonSvg = d3.select("body").append("svg")
+    .attr("width", 30)
+    .attr("height", 30)
+    .append("g").append("image")
+    .attr("xlink:href", "icons/add_person.svg")
+    .attr("x", () => 10)
+    .attr("y", () => 10)
+    .attr("width", () => 20)
+    .attr("height", () => 20)
+    .on("click", async (event, d) => {
+    const newPersonId = await model.newPerson("Name");
+    await updateAll();
+});
+const svg = d3.select("body").append("svg").attr("class", "tree")
     .attr("width", "100%")
-    .attr("height", "100%").style("background", "#e5deca");
-;
+    .attr("height", "100%");
 svg.call(d3.zoom()
     .on('zoom', (e) => {
-    d3.select('svg g')
+    d3.select('.tree g')
         .attr('transform', e.transform);
 }));
-const g = svg.append("g");
+const g = svg.append("g").attr('transform', "translate(" + 100 + "," + 150 + ")");
 // -------------------------- Data points that trigger draws --------------------------
 let personNodes = [];
 let familyNodes = [];

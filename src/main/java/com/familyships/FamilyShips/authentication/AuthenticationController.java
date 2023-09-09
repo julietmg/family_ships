@@ -37,10 +37,11 @@ public class AuthenticationController {
             if (user == null) {
                 user = new User();
                 user.setGoogleSub(googleSub);
+                user.setName(principal.getAttribute("given_name"));
                 userRepository.save(user);
             }
 
-            return Collections.singletonMap("id", user.getId());
+            return Collections.singletonMap("name", user.getName());
         }
 
         String gitLogin = principal.getAttribute("login");
@@ -51,9 +52,10 @@ public class AuthenticationController {
             if (user == null) {
                 user = new User();
                 user.setGitLogin(gitLogin);
+                 user.setName(principal.getAttribute("name"));
                 userRepository.save(user);
             }
-            return Collections.singletonMap("id", user.getId());
+            return Collections.singletonMap("name", user.getName());
 
         }
         throw new UnknownUserIdentifierException();

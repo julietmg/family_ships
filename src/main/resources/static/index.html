@@ -18,112 +18,40 @@
 </head>
 
 <body style="width:100%;height:100%;margin:0;">
-    
 
-    <label class="switch">
+
+    <label class="switch" style="display:none">
         <!-- Add `checked` here to turn on debug mode. -->
         <input type="checkbox" id="debug-switch">
         <span class="slider round"></span>
     </label>
 
 
-    <div class="container unauthenticated">
-        <img src="familyships.png" width="50" />
-        <h1>FamilyShips</h1>
-        <div>
-            With GitHub: <a href="/oauth2/authorization/github">click here</a>
+    <div class="unauthenticated"
+        style="height:100%;display: flex;flex-direction: column;justify-content: center;align-items: center;">
+        <div style="display:flex;flex-direction: row;justify-content: center;">
+            <img style="width: 50%;" src="icons/familyships.svg" />
         </div>
-        <div>
-            With Google: <a href="/oauth2/authorization/google">click here</a>
+        <div style="margin-top: 20px;">
+            <button type="button" style="background: white;color:black;"
+                onclick="location.href = '/oauth2/authorization/google';" class="login-with-google-btn">
+                Sign in with Google
+            </button>
+        </div>
+        <div style="margin-top: 10px;">
+            <button type="button" style="background: white;color:black;"
+                onclick="location.href = '/oauth2/authorization/github';" class="login-with-github-btn">
+                Sign in with GitHub
+            </button>
         </div>
     </div>
-    <div class="container authenticated" style="display:none">
-
-        Logged in as: <span id="id"></span>
-        <div class="debug">
-            <div>
-                Add person:
-                <form action="/model/new_person" method="POST">
-                    <input type="text" name="spaceSeparatedNames" placeholder="Enter the person's name">
-                    <input type="submit" value="Add">
-                </form>
+    <div class="authenticated" style="display:none">
+        <div style="display: flex;flex-direction: column;justify-content: center;align-items: center;">
+            <div> <span style="font-family:Dancing Script;font-size:54px;text-align:center"id="id"></span>
             </div>
-
             <div>
-                Delete person:
-                <form action="/model/delete_person" method="POST">
-                    <input type="text" name="personId" placeholder="Enter the person's id">
-                    <input type="submit" value="Delete">
-                </form>
+                <button style="background: white;color:black;" onClick="logout()">Logout</button>
             </div>
-
-            <div>
-                Add family:
-                <form action="/model/new_family" method="POST">
-                    <input type="submit" value="Add">
-                </form>
-            </div>
-
-            <div>
-                Delete family:
-                <form action="/model/delete_family" method="POST">
-                    <input type="text" name="familyId" placeholder="Enter the person's id">
-                    <input type="submit" value="Delete">
-                </form>
-            </div>
-
-
-            <div>
-                Attach a child to a family:
-                <form action="/model/attach_child" method="POST">
-                    <input type="text" name="familyId" placeholder="Enter family id">
-                    <input type="text" name="childId" placeholder="Enter child id">
-                    <input type="submit" value="Add">
-                </form>
-            </div>
-
-            <div>
-                Detach a child from a family:
-                <form action="/model/detach_child" method="POST">
-                    <input type="text" name="familyId" placeholder="Enter family id">
-                    <input type="text" name="childId" placeholder="Enter child id">
-                    <input type="submit" value="Add">
-                </form>
-            </div>
-
-
-            <div>
-                Attach a parent to a family:
-                <form action="/model/attach_parent" method="POST">
-                    <input type="text" name="familyId" placeholder="Enter family id">
-                    <input type="text" name="parentId" placeholder="Enter parent id">
-                    <input type="submit" value="Add">
-                </form>
-            </div>
-
-            <div>
-                Detach a parent from a family:
-                <form action="/model/detach_parent" method="POST">
-                    <input type="text" name="familyId" placeholder="Enter family id">
-                    <input type="text" name="parentId" placeholder="Enter parent id">
-                    <input type="submit" value="Add">
-                </form>
-            </div>
-
-            <div>
-                Set names on the person:
-                <form action="/model/detach_parent" method="POST">
-                    <input type="text" name="personId" placeholder="Enter a person id">
-                    <input type="text" name="spaceSeparatedNames" placeholder="Enter new names">
-                    <input type="submit" value="Add">
-                </form>
-            </div>
-        </div>
-
-
-
-        <div>
-            <button onClick="logout()">Logout</button>
         </div>
     </div>
 
@@ -133,7 +61,7 @@
         }
 
         $.get("/auth/id", function (data) {
-            $("#id").html(data.id);
+            $("#id").html(data.name);
             $(".unauthenticated").hide();
             $(".authenticated").show();
             let script = document.createElement('script');

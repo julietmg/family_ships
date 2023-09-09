@@ -15,6 +15,8 @@ public class User {
   private String googleSub;
   // Identifier for people logged in with Git
   private String gitLogin;
+  // Name is just a neat identifier to show on top of the page.
+  private String name;
 
   public Integer getId() {
     return id;
@@ -22,6 +24,14 @@ public class User {
 
   public void setId(Integer id) {
     this.id = id;
+  }
+
+   public String getName() {
+    return name;
+  }
+
+  public void setName(String name) {
+    this.name = name;
   }
 
   public String getGoogleSub() {
