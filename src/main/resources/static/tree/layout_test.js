@@ -1,9 +1,9 @@
 import * as config from "./config.js";
 import * as model from "./model.js";
-import * as scc from "./scc.js";
-import * as reachability from "./reachability.js";
+import * as layout from "./layout.js";
+import * as utils from "./utils.js";
 if (config.test) {
-    console.log("reachability_test.ts: Starting");
+    console.log("layout_test.ts: Starting");
     model.reset();
     for (let i = 1; i <= 10; i += 1) {
         model.fakeNewPerson("name" + i);
@@ -25,16 +25,11 @@ if (config.test) {
     addParentChildEdge(9, 6);
     addParentChildEdge(7, 9);
     addParentChildEdge(9, 5);
-    scc.recalculate();
+    layout.recalculate();
     // This output might be useful when debugging this test.
-    // console.log("sccs:");
-    // console.log(sccs);
-    // console.log("personsSccId:");
-    // console.log(scc.personsSccId);
-    console.assert(reachability.isAnyReachableFrom([1, 2], new Set([9, 4])));
-    console.assert(!reachability.isAnyReachableFrom([9, 4], new Set([1, 2])));
-    console.assert(reachability.isAnyReachableFrom([9, 3], new Set([5, 10])));
-    console.assert(!reachability.isAnyReachableFrom([10], new Set([1])));
-    console.log("reachability_test.ts: Passed");
+    // console.log("layers:");
+    // console.log(layout.layers);
+    console.assert(utils.arraysEqual(layout.layers[0], [1, 2, 3, 6, 7, 8, 9, 10]));
+    console.log("layout_test.ts: Passed");
 }
-//# sourceMappingURL=reachability_test.js.map
+//# sourceMappingURL=layout_test.js.map

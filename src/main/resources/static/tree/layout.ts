@@ -13,6 +13,9 @@ type Position = {
 export let personsPosition: Record<model.PersonId, Position> = {};
 export let familyPosition: Record<model.FamilyId, Position> = {};
 
+// Exposed just for testing purposes
+export let layers : Array<Array<model.PersonId>> = [];
+
 export function recalculate() {
     // Make sure all the necessary components are recalculated.
     scc.recalculate();
@@ -28,7 +31,7 @@ export function recalculate() {
         peopleWithUnassignedLayer.add(+personId);
     }
 
-    let layers: Array<Array<model.PersonId>> = [];
+    layers = [];
     let personsLayer: Record<model.PersonId, number> = {};
 
     while (peopleWithUnassignedLayer.size > 0) {

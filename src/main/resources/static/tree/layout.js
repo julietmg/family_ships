@@ -4,6 +4,8 @@ import * as scc from "./scc.js";
 import * as reversible_deque from "./reversible_deque.js";
 export let personsPosition = {};
 export let familyPosition = {};
+// Exposed just for testing purposes
+export let layers = [];
 export function recalculate() {
     // Make sure all the necessary components are recalculated.
     scc.recalculate();
@@ -16,7 +18,7 @@ export function recalculate() {
     for (const personId in model.people) {
         peopleWithUnassignedLayer.add(+personId);
     }
-    let layers = [];
+    layers = [];
     let personsLayer = {};
     while (peopleWithUnassignedLayer.size > 0) {
         let considered = new Set();

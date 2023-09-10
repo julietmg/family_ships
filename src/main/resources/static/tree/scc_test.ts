@@ -5,6 +5,8 @@ import * as scc from "./scc.js";
 import * as utils from "./utils.js";
 
 if(config.test) {
+    console.log("scc_test.ts: Starting");
+
     model.reset();
     
     for(let i = 1; i <= 10; i += 1){
@@ -53,4 +55,5 @@ if(config.test) {
     console.assert(utils.arraysEqual(sccs[scc.personsSccId[4]], [4]));
     console.assert(utils.arraysEqual(sccs[scc.personsSccId[5]], [5,6,7,8,9]));
     console.assert(utils.arraysEqual(sccs[scc.personsSccId[6]], [5,6,7,8,9]));
+    console.log("scc_test.ts: Passed");
 }
