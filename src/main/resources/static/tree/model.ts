@@ -42,7 +42,6 @@ export async function reload() {
     }
 
     if(config.debug) {
-        console.log("reload was called");
         console.log("Reloaded families:");
         console.log(families);
         console.log("Reloaded people:");
@@ -52,15 +51,7 @@ export async function reload() {
 
 // Note that this must be followed by a call to `reload()` in production and call to `recalculate()` in test mode.
 export async function newPerson(spaceSeparatedNames: string): Promise<PersonId> {
-    if (config.test) {
-        const maxPersonId = Object.keys(people).map((a) => +a).reduce((a, b) => Math.max(a, b),0);
-        const newPersonId = maxPersonId + 1;
-        people[newPersonId] = {
-            id: newPersonId, names: spaceSeparatedNames.split(' '),
-            childOfFamiliesIds: [], parentOfFamilyIds: []
-        };
-        return newPersonId;
-    }
+    if (config.test) { return fakeNewPerson(spaceSeparatedNames); }
     return await fetch("/model/new_person", {
         method: 'POST',
         headers: {
@@ -73,13 +64,7 @@ export async function newPerson(spaceSeparatedNames: string): Promise<PersonId> 
 }
 
 export async function deletePerson(personId: PersonId): Promise<boolean> {
-    if (config.test) {
-        if(people[personId] == undefined) {
-            return false;
-        }
-        delete people[personId];
-        return true;
-    }
+    if (config.test) { return fakeDeletePerson(personId); }
     return await fetch("/model/delete_person", {
         method: 'POST',
         headers: {
@@ -92,14 +77,7 @@ export async function deletePerson(personId: PersonId): Promise<boolean> {
 }
 
 export async function newFamily(): Promise<FamilyId> {
-    if (config.test) {
-        const maxFamilyId = Object.keys(families).map((a) => +a).reduce((a, b) => Math.max(a, b), 0);
-        const newFamilyId = maxFamilyId + 1;
-        families[newFamilyId] = {
-            id: newFamilyId, childrenIds: [], parentIds: []
-        };
-        return newFamilyId;
-    }
+    if (config.test) { return fakeNewFamily(); }
     return await fetch("/model/new_family", {
         method: 'POST',
         headers: {
@@ -110,13 +88,7 @@ export async function newFamily(): Promise<FamilyId> {
 }
 
 export async function deleteFamily(familyId: FamilyId): Promise<boolean> {
-    if (config.test) {
-        if(families[familyId] == undefined) {
-            return false;
-        }
-        delete families[familyId];
-        return true;
-    }
+    if (config.test) { fakeDeleteFamily(familyId); }
     return await fetch("/model/delete_family", {
         method: 'POST',
         headers: {
@@ -129,14 +101,7 @@ export async function deleteFamily(familyId: FamilyId): Promise<boolean> {
 }
 
 export async function attachChild(familyId: FamilyId, childId: PersonId): Promise<boolean> {
-    if (config.test) {
-        if(families[familyId] == undefined || people[childId] == undefined) {
-            return false;
-        }
-        families[familyId].childrenIds.push(childId);
-        people[childId].childOfFamiliesIds.push(familyId);
-        return true;
-    }
+    if (config.test) { return fakeAttachChild(familyId, childId); }
     return await fetch("/model/attach_child", {
         method: 'POST',
         headers: {
@@ -150,14 +115,7 @@ export async function attachChild(familyId: FamilyId, childId: PersonId): Promis
 }
 
 export async function detachChild(familyId: FamilyId, childId: PersonId): Promise<boolean> {
-    if (config.test) {
-        if(families[familyId] == undefined || people[childId] == undefined) {
-            return false;
-        }
-        families[familyId].childrenIds = families[familyId].childrenIds.filter((id) => id != childId);
-        people[childId].childOfFamiliesIds = people[familyId].childOfFamiliesIds.filter((id) => id != familyId);
-        return true;
-    }
+    if (config.test) { return fakeDetachChild(familyId, childId); }
     return await fetch("/model/detach_child", {
         method: 'POST',
         headers: {
@@ -171,14 +129,7 @@ export async function detachChild(familyId: FamilyId, childId: PersonId): Promis
 }
 
 export async function attachParent(familyId: FamilyId, parentId: PersonId): Promise<boolean> {
-    if (config.test) {
-        if(families[familyId] == undefined || people[parentId] == undefined) {
-            return false;
-        }
-        families[familyId].parentIds.push(parentId);
-        people[parentId].parentOfFamilyIds.push(familyId);
-        return true;
-    }
+    if (config.test) { return fakeAttachParent(familyId, parentId); }
     return await fetch("/model/attach_parent", {
         method: 'POST',
         headers: {
@@ -192,14 +143,7 @@ export async function attachParent(familyId: FamilyId, parentId: PersonId): Prom
 }
 
 export async function detachParent(familyId: FamilyId, parentId: PersonId): Promise<boolean> {
-    if (config.test) {
-        if(families[familyId] == undefined || people[parentId] == undefined) {
-            return false;
-        }
-        families[familyId].childrenIds = families[familyId].parentIds.filter((id) => id != parentId);
-        people[parentId].childOfFamiliesIds = people[familyId].parentOfFamilyIds.filter((id) => id != familyId);
-        return true;
-    }
+    if (config.test) { return fakeDetachParent(familyId, parentId); }
     return await fetch("/model/detach_parent", {
         method: 'POST',
         headers: {
@@ -213,13 +157,7 @@ export async function detachParent(familyId: FamilyId, parentId: PersonId): Prom
 }
 
 export async function setNames(personId: PersonId, spaceSeparatedNames: string): Promise<boolean> {
-    if(config.test) {
-        if(people[personId] == undefined) {
-            return false;
-        }
-        people[personId].names = spaceSeparatedNames.split(' ');
-        return true;
-    }
+    if(config.test) { return fakeSetNames(personId, spaceSeparatedNames); }
     return await fetch("/model/set_names", {
         method: 'POST',
         headers: {
@@ -352,4 +290,85 @@ export function partnerCluster(personId: number): Set<number> {
     let result: Set<number> = new Set();
     partnerClusterRec(personId, result);
     return result;
+}
+
+// -------------------------- Faking the interactions with the backend for the purpose of tests --------------------------
+
+export function fakeNewPerson(spaceSeparatedNames: string) : PersonId {
+    const maxPersonId = Object.keys(people).map((a) => +a).reduce((a, b) => Math.max(a, b),0);
+    const newPersonId = maxPersonId + 1;
+    people[newPersonId] = {
+        id: newPersonId, names: spaceSeparatedNames.split(' '),
+        childOfFamiliesIds: [], parentOfFamilyIds: []
+    };
+    return newPersonId;
+}
+
+export function fakeDeletePerson(personId: PersonId) : boolean {
+    if(people[personId] == undefined) {
+        return false;
+    }
+    delete people[personId];
+    return true;
+}
+
+export function fakeNewFamily() : FamilyId {
+    const maxFamilyId = Object.keys(families).map((a) => +a).reduce((a, b) => Math.max(a, b), 0);
+    const newFamilyId = maxFamilyId + 1;
+    families[newFamilyId] = {
+        id: newFamilyId, childrenIds: [], parentIds: []
+    };
+    return newFamilyId;
+}
+
+export function fakeDeleteFamily(familyId: FamilyId) : boolean {
+    if(families[familyId] == undefined) {
+        return false;
+    }
+    delete families[familyId];
+    return true;
+}
+
+export function fakeAttachChild(familyId: FamilyId, childId: PersonId) : boolean {
+    if(families[familyId] == undefined || people[childId] == undefined) {
+        return false;
+    }
+    families[familyId].childrenIds.push(childId);
+    people[childId].childOfFamiliesIds.push(familyId);
+    return true;
+}
+
+export function fakeDetachChild(familyId: FamilyId, childId: PersonId) : boolean {
+    if(families[familyId] == undefined || people[childId] == undefined) {
+        return false;
+    }
+    families[familyId].childrenIds = families[familyId].childrenIds.filter((id) => id != childId);
+    people[childId].childOfFamiliesIds = people[familyId].childOfFamiliesIds.filter((id) => id != familyId);
+    return true;
+}
+
+export function fakeAttachParent(familyId: FamilyId, parentId: PersonId) : boolean {
+    if(families[familyId] == undefined || people[parentId] == undefined) {
+        return false;
+    }
+    families[familyId].parentIds.push(parentId);
+    people[parentId].parentOfFamilyIds.push(familyId);
+    return true;
+}
+
+export function fakeDetachParent(familyId: FamilyId, parentId: PersonId) : boolean {
+    if(families[familyId] == undefined || people[parentId] == undefined) {
+        return false;
+    }
+    families[familyId].childrenIds = families[familyId].parentIds.filter((id) => id != parentId);
+    people[parentId].childOfFamiliesIds = people[familyId].parentOfFamilyIds.filter((id) => id != familyId);
+    return true;
+}
+
+export function fakeSetNames(personId: PersonId, spaceSeparatedNames: string) : boolean {
+    if(people[personId] == undefined) {
+        return false;
+    }
+    people[personId].names = spaceSeparatedNames.split(' ');
+    return true;
 }

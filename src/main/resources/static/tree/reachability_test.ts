@@ -1,6 +1,7 @@
 import * as config from "./config.js";
 import * as model from "./model.js";
 import * as scc from "./scc.js";
+import * as reachability from "./reachability.js";
 
 import * as utils from "./utils.js";
 
@@ -35,22 +36,14 @@ if(config.test) {
 
     scc.recalculate();
 
-    let sccs : Record<scc.SccId,Array<model.PersonId>> = {};
-    for(const personId in model.people) {
-        if(sccs[scc.personsSccId[personId]] == undefined) {
-            sccs[scc.personsSccId[personId]] = [];
-        }
-        sccs[scc.personsSccId[personId]].push(+personId);    
-    }
-
     // This output might be useful when debugging this test.
     // console.log("sccs:");
     // console.log(sccs);
     // console.log("personsSccId:");
     // console.log(scc.personsSccId);
-    console.assert(utils.arraysEqual(sccs[scc.personsSccId[1]], [1,2,3]));
-    console.assert(utils.arraysEqual(sccs[scc.personsSccId[2]], [1,2,3]));
-    console.assert(utils.arraysEqual(sccs[scc.personsSccId[4]], [4]));
-    console.assert(utils.arraysEqual(sccs[scc.personsSccId[5]], [5,6,7,8,9]));
-    console.assert(utils.arraysEqual(sccs[scc.personsSccId[6]], [5,6,7,8,9]));
+    console.assert(reachability.isAnyReachableFrom([1,2],new Set([9,4])));
+    console.assert(!reachability.isAnyReachableFrom([9,4],new Set([1,2])));
+    console.assert(reachability.isAnyReachableFrom([9,3],new Set([5, 10])));
+    console.assert(!reachability.isAnyReachableFrom([10],new Set([1])));
+
 }

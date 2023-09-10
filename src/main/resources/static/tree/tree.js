@@ -6,6 +6,7 @@ import * as layout from "./layout.js";
 // ----------------- Running tests ------------------
 import "./scc_test.js";
 import "./model_test.js";
+import "./reachability_test.js";
 // Showcase the icons that we have in the debug mode.
 if (config.debug) {
     function showDebugIcon(path) {

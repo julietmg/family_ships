@@ -6,15 +6,15 @@ import * as utils from "./utils.js";
 if(config.test) {
     model.reset();
     
-    const personId = await model.newPerson("name " + 1);
-    const familyId = await model.newFamily();
-    await model.attachParent(familyId, personId);
+    const personId = model.fakeNewPerson("name " + 1);
+    const familyId = model.fakeNewFamily();
+    model.fakeAttachParent(familyId, personId);
 
     // This output might be useful when debugging this test.
-    // console.log("people:");
-    // console.log(model.people);
-    // console.log("families:");
-    // console.log(model.families);
+    console.log("people:");
+    console.log(model.people);
+    console.log("families:");
+    console.log(model.families);
 
     console.assert(personId == 1);
     console.assert(model.people[personId].id == personId);
