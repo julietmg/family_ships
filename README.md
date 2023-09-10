@@ -75,3 +75,17 @@ mysql> show tables; -- Show what tables are available
 mysql> select * from user; -- Look at what users are registered on the platform
 mysql> select * from family_parent; -- Look at family parent relationships
 ```
+
+### Tests
+
+There are separate tests for the backend and the frontend of the appliction.
+
+#### Frontend tests
+
+Frontend tests are living under [./src/main/resources/static/tree/*_test.ts](./src/main/resources/static/tree/). Those can be turned on by modifying [./src/main/resources/static/tree/con](./src/main/resources/static/tree/config.ts) the file, turning the `test` value to `true`. The tests will then run, whenever the javascript runs. 
+
+Those tests do not require connection to the backend service. All of them fake the connection.
+
+#### Backend tests
+
+Those live under [./src/test/java/com/familyships/FamilyShips/*Test.java](./src/test/java/com/familyships/FamilyShips/). Those are JUnit tests.
