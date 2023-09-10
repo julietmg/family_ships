@@ -3,7 +3,9 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import * as config from "./config.js";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
+// ----------------- Running tests ------------------
 import "./scc_test.js";
+import "./model_test.js";
 // Showcase the icons that we have in the debug mode.
 if (config.debug) {
     function showDebugIcon(path) {
