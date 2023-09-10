@@ -25,10 +25,10 @@ export class ReversibleDeque {
     }
     pushBack(value) {
         if (this.reversed) {
-            this.data.peekFront();
+            this.data.pushFront(value);
             return;
         }
-        this.data.peekBack();
+        this.data.pushBack(value);
     }
     popBack() {
         if (this.reversed) {
@@ -38,15 +38,32 @@ export class ReversibleDeque {
     }
     peekBack() {
         if (this.reversed) {
-            return this.data.peekBack();
+            return this.data.peekFront();
         }
-        return this.data.peekFront();
+        return this.data.peekBack();
     }
     reverse() {
         this.reversed = !this.reversed;
     }
+    appendBack(b) {
+        if (this.reversed == b.reversed) {
+            this.data.appendBack(b.data);
+        }
+        else {
+            b.data.reverse();
+            this.data.appendBack(b.data);
+        }
+    }
+    appendFront(b) {
+        if (this.reversed == b.reversed) {
+            this.data.appendFront(b.data);
+        }
+        else {
+            b.data.reverse();
+            this.data.appendFront(b.data);
+        }
+    }
     toArray() {
-        // This is not pure, but it saves us an array reversal.
         let result = this.data.toArray();
         if (this.reversed) {
             result.reverse();

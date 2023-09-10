@@ -70,6 +70,58 @@ export class Deque<T> {
         }
         return value;
     }
+    appendBack(b : Deque<T>) {
+        if(b.front == undefined) {
+            return;
+        }
+        if (this.front == undefined) {
+            this.front = b.front;
+            this.back = b.back;
+        }
+        else {
+            this.back.next = b.front;
+            b.front.prev = this.back;
+
+            this.back = b.back;
+        }
+        b.back = undefined;
+        b.front = undefined;
+        return;
+    }
+    appendFront(b : Deque<T>) {
+        if(b.back == undefined) {
+            return;
+        }
+        if (this.back == undefined) {
+            this.front = b.front;
+            this.back = b.back;
+        }
+        else {
+            this.front.prev = b.back;
+            b.back.next = this.front;
+            
+            this.front = b.front;
+        }
+        b.back = undefined;
+        b.front = undefined;
+        return;
+    }
+    reverse() {
+        if(this.front == undefined) {
+            return;
+        }
+        let current = this.front;
+        while(current != undefined) {
+            const next : Node<T> = current.next;
+            current.next = current.prev;
+            current.prev = next;
+            current = next;
+        }
+        
+        const back : Node<T> = this.back;
+        this.back = this.front;
+        this.front = back;
+    }
     toArray() {
         if(this.front == undefined) {
             return [];
