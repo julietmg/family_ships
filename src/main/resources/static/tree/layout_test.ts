@@ -43,7 +43,7 @@ if(config.test) {
 
     console.assert(utils.arraysEqual(layout.layers[0],[1,2,3,6,7,8,9,10]))
 
-    console.log("layout_test.ts: Passed [sccs]");
+    console.log("layout_test.ts: Finished [sccs]");
 }
 
 if(config.test) {
@@ -109,5 +109,5 @@ if(config.test) {
     console.assert(utils.arraysEqual(layout.layers[2],[8,12]));
     console.assert(utils.arraysEqual(layout.layers[3],[13,14]));
 
-    console.log("layout_test.ts: Passed [nuclear]");
+    console.log("layout_test.ts: Finished [nuclear]");
 }

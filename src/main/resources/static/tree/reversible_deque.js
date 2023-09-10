@@ -47,16 +47,9 @@ export class ReversibleDeque {
     }
     toArray() {
         // This is not pure, but it saves us an array reversal.
+        let result = this.data.toArray();
         if (this.reversed) {
-            let result = [];
-            for (let i = this.data.back - 1; i >= this.data.front; i -= 1) {
-                result.push(this.data.data[i]);
-            }
-            return result;
-        }
-        let result = [];
-        for (let i = this.data.front; i < this.data.back; i += 1) {
-            result.push(this.data.data[i]);
+            result.reverse();
         }
         return result;
     }

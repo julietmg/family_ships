@@ -55,5 +55,5 @@ if(config.test) {
     console.assert(utils.arraysEqual(sccs[scc.personsSccId[4]], [4]));
     console.assert(utils.arraysEqual(sccs[scc.personsSccId[5]], [5,6,7,8,9]));
     console.assert(utils.arraysEqual(sccs[scc.personsSccId[6]], [5,6,7,8,9]));
-    console.log("scc_test.ts: Passed");
+    console.log("scc_test.ts: Finished");
 }

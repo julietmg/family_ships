@@ -8,6 +8,7 @@ import "./scc_test.js";
 import "./model_test.js";
 import "./reachability_test.js";
 import "./layout_test.js";
+import "./deque_test.js";
 // Showcase the icons that we have in the debug mode.
 if (config.debug) {
     function showDebugIcon(path) {

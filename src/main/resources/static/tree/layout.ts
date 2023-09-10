@@ -156,8 +156,6 @@ export function recalculate() {
 
     recalculateLayerAssignment();
 
-    // -------------------------- TODO: IN PROGRESS --------------------------
-
     // -------------------------- Calculating new constraints between people --------------------------
 
     // The resulting form doubly linked lists, with left and right pointers, indicating the left and right neighbours

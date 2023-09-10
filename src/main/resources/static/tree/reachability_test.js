@@ -35,6 +35,6 @@ if (config.test) {
     console.assert(!reachability.isAnyReachableFrom([9, 4], new Set([1, 2])));
     console.assert(reachability.isAnyReachableFrom([9, 3], new Set([5, 10])));
     console.assert(!reachability.isAnyReachableFrom([10], new Set([1])));
-    console.log("reachability_test.ts: Passed");
+    console.log("reachability_test.ts: Finished");
 }
 //# sourceMappingURL=reachability_test.js.map

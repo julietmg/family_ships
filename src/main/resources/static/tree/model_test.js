@@ -18,6 +18,6 @@ if (config.test) {
     console.assert(model.people[personId].names[1] == "1");
     console.assert(model.families[familyId].id == familyId);
     console.assert(utils.arraysEqual(model.parentOfFamilies(personId), [familyId]));
-    console.log("model_test.ts: Passed");
+    console.log("model_test.ts: Finished");
 }
 //# sourceMappingURL=model_test.js.map
