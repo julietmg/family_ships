@@ -1,4 +1,4 @@
-type Node<T> = {
+export type Node<T> = {
     value : T
     prev?: Node<T>
     next? : Node<T>
@@ -23,6 +23,7 @@ export class Deque<T> {
             this.front.prev = { value, next: this.front };
             this.front = this.front.prev;
         }
+        return this.front;
     }
     peekFront() {
         if (this.front != undefined) {
@@ -51,6 +52,7 @@ export class Deque<T> {
             this.back.next = { value, prev: this.back };
             this.back = this.back.next;
         }
+        return this.back;
     }
     peekBack() {
         if (this.back != undefined) {

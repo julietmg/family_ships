@@ -48,9 +48,7 @@ if (config.test) {
 
     // This output might be useful when debugging this test.
     // console.log(a);
-    // console.log(b);
     // console.log(a.toArray());
-    // console.log(b.toArray());
 
     console.assert(utils.arraysEqual(a.toArray(), [5,6,7,8,4,3,2,1]));
 
@@ -83,11 +81,46 @@ if (config.test) {
 
     // This output might be useful when debugging this test.
     // console.log(a);
-    // console.log(b);
     // console.log(a.toArray());
-    // console.log(b.toArray());
 
     console.assert(utils.arraysEqual(a.toArray(), [5, 6, 7, 8, 1, 2, 3, 4]));
 
     console.log("reversible_deque_test.ts: Finished [merge_front]");
+}
+
+if (config.test) {
+    console.log("reversible_deque_test.ts: Starting [node_location]");
+    let a: reversible_deque.ReversibleDeque<number> = new reversible_deque.ReversibleDeque();
+    a.pushBack(1);
+    a.pushBack(2);
+    a.pushBack(3);
+    a.pushBack(4);
+
+    a.reverse();
+
+    let b: reversible_deque.ReversibleDeque<number> = new reversible_deque.ReversibleDeque();
+    b.pushBack(5);
+    b.pushBack(6);
+    let locationB = b.pushBack(7);
+    let locationA = b.pushBack(8);
+
+    b.reverse();
+
+    a.appendFront(b);
+
+    console.assert(utils.arraysEqual(b.toArray(), []));
+
+    a.reverse();
+
+    // This output might be useful when debugging this test.
+    // console.log(a);
+    // console.log(a.toArray());
+    // console.log(locationA);
+    // console.log(locationB);
+    console.assert(locationA.next.value == 1);
+    console.assert(locationA.prev.value == 7);
+    console.assert(locationB.value == 7);
+    console.assert(locationB.prev.value == 6);
+
+    console.log("reversible_deque_test.ts: Finished [node_location]");
 }

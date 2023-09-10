@@ -1,5 +1,7 @@
 import * as deque from "./deque.js";
 
+export type Node<T> = deque.Node<T>;
+
 export class ReversibleDeque<T> {
     data: deque.Deque<T>
     reversed: boolean
@@ -9,10 +11,9 @@ export class ReversibleDeque<T> {
     }
     pushFront(value: T) {
         if (this.reversed) {
-            this.data.pushBack(value);
-            return;
+            return this.data.pushBack(value);
         }
-        this.data.pushFront(value);
+        return this.data.pushFront(value);
     }
     popFront() {
         if (this.reversed) {
@@ -28,10 +29,9 @@ export class ReversibleDeque<T> {
     }
     pushBack(value: T) {
         if (this.reversed) {
-            this.data.pushFront(value);
-            return;
+            return this.data.pushFront(value);
         }
-        this.data.pushBack(value);
+        return this.data.pushBack(value);
     }
     popBack() {
         if (this.reversed) {

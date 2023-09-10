@@ -6,10 +6,9 @@ export class ReversibleDeque {
     }
     pushFront(value) {
         if (this.reversed) {
-            this.data.pushBack(value);
-            return;
+            return this.data.pushBack(value);
         }
-        this.data.pushFront(value);
+        return this.data.pushFront(value);
     }
     popFront() {
         if (this.reversed) {
@@ -25,10 +24,9 @@ export class ReversibleDeque {
     }
     pushBack(value) {
         if (this.reversed) {
-            this.data.pushFront(value);
-            return;
+            return this.data.pushFront(value);
         }
-        this.data.pushBack(value);
+        return this.data.pushBack(value);
     }
     popBack() {
         if (this.reversed) {
