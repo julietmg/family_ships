@@ -4,22 +4,21 @@ import * as scc from "./scc.js";
 import * as reversible_deque from "./reversible_deque.js";
 export let personsPosition = {};
 export let familyPosition = {};
-// Exposed just for testing purposes
+// -------------------------- Assigning people to layers --------------------------
+// Exported just for testing purposes
 export let layers = [];
-export function recalculate() {
+export let personsLayer = {};
+// Exported just for testing purposes
+export function recalculateLayerAssignment() {
     // Make sure all the necessary components are recalculated.
     scc.recalculate();
-    // Reset the existing positions before recalculating
-    personsPosition = {};
-    familyPosition = {};
-    // -------------------------- Assigning people to layers --------------------------
     // Algorithm lays out people with layers, starting with people with no parents.
     let peopleWithUnassignedLayer = new Set();
     for (const personId in model.people) {
         peopleWithUnassignedLayer.add(+personId);
     }
     layers = [];
-    let personsLayer = {};
+    personsLayer = {};
     while (peopleWithUnassignedLayer.size > 0) {
         let considered = new Set();
         // Get people that are not yet laid out, but for whose
@@ -115,6 +114,12 @@ export function recalculate() {
         layer.sort((a, b) => a - b);
         layers.push(layer);
     }
+}
+export function recalculate() {
+    // Reset the existing positions before recalculating
+    personsPosition = {};
+    familyPosition = {};
+    recalculateLayerAssignment();
     let nextConstraintId = 0;
     let peopleConstraints = {};
     let personsConstraintIds = {};

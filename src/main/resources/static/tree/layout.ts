@@ -13,17 +13,17 @@ type Position = {
 export let personsPosition: Record<model.PersonId, Position> = {};
 export let familyPosition: Record<model.FamilyId, Position> = {};
 
-// Exposed just for testing purposes
-export let layers : Array<Array<model.PersonId>> = [];
 
-export function recalculate() {
+// -------------------------- Assigning people to layers --------------------------
+
+// Exported just for testing purposes
+export let layers: Array<Array<model.PersonId>> = [];
+export let personsLayer: Record<model.PersonId, number> = {};
+
+// Exported just for testing purposes
+export function recalculateLayerAssignment() {
     // Make sure all the necessary components are recalculated.
     scc.recalculate();
-    // Reset the existing positions before recalculating
-    personsPosition = {};
-    familyPosition = {};
-
-    // -------------------------- Assigning people to layers --------------------------
 
     // Algorithm lays out people with layers, starting with people with no parents.
     let peopleWithUnassignedLayer: Set<model.PersonId> = new Set();
@@ -32,7 +32,7 @@ export function recalculate() {
     }
 
     layers = [];
-    let personsLayer: Record<model.PersonId, number> = {};
+    personsLayer = {};
 
     while (peopleWithUnassignedLayer.size > 0) {
         let considered: Set<model.PersonId> = new Set();
@@ -45,7 +45,7 @@ export function recalculate() {
         for (const personId of peopleWithUnassignedLayer) {
             let hasNonLaidOutParents = false;
             for (const parentId of model.parents(personId)) {
-                if (peopleWithUnassignedLayer.has(parentId) && 
+                if (peopleWithUnassignedLayer.has(parentId) &&
                     scc.personsSccId[parentId] != scc.personsSccId[personId]) {
                     hasNonLaidOutParents = true;
                     break;
@@ -147,6 +147,14 @@ export function recalculate() {
         layer.sort((a, b) => a - b);
         layers.push(layer);
     }
+}
+
+export function recalculate() {
+    // Reset the existing positions before recalculating
+    personsPosition = {};
+    familyPosition = {};
+
+    recalculateLayerAssignment();
 
     // -------------------------- TODO: IN PROGRESS --------------------------
 
@@ -157,17 +165,17 @@ export function recalculate() {
     // `leftmost` ensures there is no cycle.
     // Note, that this is based on pure heuristics and the output of this has no additional invariants.
     // (i.e. whatever the output of this step, the final graph should still look more or less decent)
- 
+
     type ConstraintId = number;
     type Constraint = {
         // TODO: Probably a better structure could be designed. One that also allows for efficient merge.
         // e.g. A deque backed up by linked lists, with some fancy reversal pattern.
-        people : reversible_deque.ReversibleDeque<model.PersonId>
-        dependency? : ConstraintId
+        people: reversible_deque.ReversibleDeque<model.PersonId>
+        dependency?: ConstraintId
     }
     let nextConstraintId = 0;
-    let peopleConstraints : Record<ConstraintId, Constraint> = {};
-    let personsConstraintIds : Record<model.PersonId, ConstraintId | null> = {};
+    let peopleConstraints: Record<ConstraintId, Constraint> = {};
+    let personsConstraintIds: Record<model.PersonId, ConstraintId | null> = {};
 
     for (const personId in model.people) {
         personsConstraintIds[personId] = null;
@@ -181,27 +189,27 @@ export function recalculate() {
         let firstPersonConstraintId = personsConstraintIds[firstPersonId];
         let secondPersonConstraintId = personsConstraintIds[secondPersonId];
 
-        if(firstPersonConstraintId == null && secondPersonConstraintId == null) {
+        if (firstPersonConstraintId == null && secondPersonConstraintId == null) {
             let constraintId = nextConstraintId;
             nextConstraintId += 1;
-            peopleConstraints[constraintId] = {people : new reversible_deque.ReversibleDeque(firstPersonId, secondPersonId)};
+            peopleConstraints[constraintId] = { people: new reversible_deque.ReversibleDeque(firstPersonId, secondPersonId) };
             personsConstraintIds[firstPersonId] = constraintId;
             personsConstraintIds[secondPersonId] = constraintId;
             return true;
         }
 
-        if(firstPersonConstraintId == null && secondPersonConstraintId != null) {
+        if (firstPersonConstraintId == null && secondPersonConstraintId != null) {
             // To avoid coding twice, we use the fact that contraints are symmetric.
             return addConstraintBetweenPeople(secondPersonId, firstPersonId);
         }
 
-        if(firstPersonConstraintId != null && secondPersonConstraintId == null) {
+        if (firstPersonConstraintId != null && secondPersonConstraintId == null) {
             let firstPersonsConstraints = peopleConstraints[firstPersonConstraintId];
-            if(firstPersonsConstraints.people.peekFront() == firstPersonId) {
+            if (firstPersonsConstraints.people.peekFront() == firstPersonId) {
                 firstPersonsConstraints.people.pushFront(secondPersonId);
                 return true;
             }
-            if(firstPersonsConstraints.people.peekBack() == firstPersonId) {
+            if (firstPersonsConstraints.people.peekBack() == firstPersonId) {
                 firstPersonsConstraints.people.pushFront(secondPersonId);
                 return true;
             }
@@ -213,11 +221,11 @@ export function recalculate() {
 
         // If people are at one of the ends of their respective constraints,
         // make sure they are at the correct ends.
-        if(firstPersonsConstraints.people.peekFront() == firstPersonId) {
+        if (firstPersonsConstraints.people.peekFront() == firstPersonId) {
             firstPersonsConstraints.people.reverse();
         }
 
-        if(secondPersonConstraints.people.peekFront() == secondPersonId) {
+        if (secondPersonConstraints.people.peekFront() == secondPersonId) {
             secondPersonConstraints.people.reverse();
         }
 
