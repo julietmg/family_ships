@@ -1,16 +1,21 @@
-import * as tools from "./tools.js";
-import * as model from "./model.js";
+import * as config from "./config.js";
 
+import * as model from "./model.js";
+import * as reachability from "./reachability.js";
+import * as scc from "./scc.js";
+import * as reversible_deque from "./reversible_deque.js";
 
 type Position = {
     x: number
     y: number
 }
 
-export let personsPosition: Record<number, Position> = {};
-export let familyPosition: Record<number, Position> = {};
+export let personsPosition: Record<model.PersonId, Position> = {};
+export let familyPosition: Record<model.FamilyId, Position> = {};
 
 export function recalculate() {
+    // Make sure all the necessary components are recalculated.
+    scc.recalculate();
     // Reset the existing positions before recalculating
     personsPosition = {};
     familyPosition = {};
@@ -18,16 +23,16 @@ export function recalculate() {
     // -------------------------- Assigning people to layers --------------------------
 
     // Algorithm lays out people with layers, starting with people with no parents.
-    let peopleWithUnassignedLayer: Set<number> = new Set();
+    let peopleWithUnassignedLayer: Set<model.PersonId> = new Set();
     for (const personId in model.people) {
         peopleWithUnassignedLayer.add(+personId);
     }
 
-    let layers: Array<Array<number>> = [];
-    let personsLayer: Record<number, number> = {};
+    let layers: Array<Array<model.PersonId>> = [];
+    let personsLayer: Record<model.PersonId, number> = {};
 
     while (peopleWithUnassignedLayer.size > 0) {
-        let considered: Set<number> = new Set();
+        let considered: Set<model.PersonId> = new Set();
 
         // Get people that are not yet laid out, but for whose
         // all parents are laid out.
@@ -37,14 +42,13 @@ export function recalculate() {
         for (const personId of peopleWithUnassignedLayer) {
             let hasNonLaidOutParents = false;
             for (const parentId of model.parents(personId)) {
-                if (peopleWithUnassignedLayer.has(parentId) 
-                  && model.personsScc[parentId] != model.personsScc[personId]) {
+                if (peopleWithUnassignedLayer.has(parentId) && 
+                    scc.personsSccId[parentId] != scc.personsSccId[personId]) {
                     hasNonLaidOutParents = true;
                     break;
                 }
             }
-            // There is a special case of sibling, that don't have any parents.
-            // Those should be in the second layer.
+
             if (hasNonLaidOutParents) {
                 continue;
             }
@@ -60,7 +64,7 @@ export function recalculate() {
 
 
         if (considered.size == 0) {
-            tools.log("BUG: We couldn't neatly assing people to layers. Some people might be missing from the graph.")
+            console.log("BUG: We couldn't neatly assing people to layers. Some people might be missing from the graph.")
             break;
         }
 
@@ -76,6 +80,7 @@ export function recalculate() {
 
             // This ensures we are considering throwing out people only once in this pass.
             // That's because we process partners of a person together with the person being analysed.
+            // Or to put into into other words, we process one whole `partnerCluster` at a time.
             let throwOutConsidered = new Set();
 
             // Make sure the partners of all people in the considered set are also considered.
@@ -85,6 +90,7 @@ export function recalculate() {
                     continue;
                 }
                 throwOutConsidered.add(id);
+
                 let personPartners = model.partnerCluster(id);
 
                 let consideredPartners = [];
@@ -100,11 +106,16 @@ export function recalculate() {
                     }
                 }
 
+                // We don't have to postpone adding the people to the layer
+                // if they don't have any partners in the lower layers.
                 if (lowerLayersPartners.size == 0) {
                     continue;
                 }
 
-                if (model.isAnyReachableFrom(consideredPartners, lowerLayersPartners)) {
+                // TODO: There are better structure to answer reachability queries faster.
+                // We have to avoid postponing adding people indefinitely, so we
+                // explictly check for cycles.
+                if (reachability.isAnyReachableFrom(consideredPartners, lowerLayersPartners)) {
                     continue;
                 }
 
@@ -117,12 +128,12 @@ export function recalculate() {
         // If we fail, we want to fail semi-gently, so we just go back to the assignment from 
         // before the process of throwing out people.
         if (considered.size == 0) {
-            tools.log("BUG: There is something weird with partner resolution.")
+            console.log("BUG: There is something weird with partner resolution.")
             considered = previousConsidered;
         }
 
         // considered now contains all the people that will appear in this layer.
-        let layer: Array<number> = [];
+        let layer: Array<model.PersonId> = [];
         for (const id of considered) {
             peopleWithUnassignedLayer.delete(id);
             layer.push(id);
@@ -133,6 +144,86 @@ export function recalculate() {
         layer.sort((a, b) => a - b);
         layers.push(layer);
     }
+
+    // -------------------------- TODO: IN PROGRESS --------------------------
+
+    // -------------------------- Calculating new constraints between people --------------------------
+
+    // The resulting form doubly linked lists, with left and right pointers, indicating the left and right neighbours
+    // of each node.
+    // `leftmost` ensures there is no cycle.
+    // Note, that this is based on pure heuristics and the output of this has no additional invariants.
+    // (i.e. whatever the output of this step, the final graph should still look more or less decent)
+ 
+    type ConstraintId = number;
+    type Constraint = {
+        // TODO: Probably a better structure could be designed. One that also allows for efficient merge.
+        // e.g. A deque backed up by linked lists, with some fancy reversal pattern.
+        people : reversible_deque.ReversibleDeque<model.PersonId>
+        dependency? : ConstraintId
+    }
+    let nextConstraintId = 0;
+    let peopleConstraints : Record<ConstraintId, Constraint> = {};
+    let personsConstraintIds : Record<model.PersonId, ConstraintId | null> = {};
+
+    for (const personId in model.people) {
+        personsConstraintIds[personId] = null;
+    }
+
+    // Will attempt to add a constraint between two people, so that they are kept together in a layout.
+    // Return `false` and doesn't modify anything if this constraint cannot be added.
+    function addConstraintBetweenPeople(firstPersonId: model.PersonId, secondPersonId: model.PersonId): boolean {
+        // We assume both aId and bId are on the same layer and that the parents have
+        // already been laid out on the layers above.
+        let firstPersonConstraintId = personsConstraintIds[firstPersonId];
+        let secondPersonConstraintId = personsConstraintIds[secondPersonId];
+
+        if(firstPersonConstraintId == null && secondPersonConstraintId == null) {
+            let constraintId = nextConstraintId;
+            nextConstraintId += 1;
+            peopleConstraints[constraintId] = {people : new reversible_deque.ReversibleDeque(firstPersonId, secondPersonId)};
+            personsConstraintIds[firstPersonId] = constraintId;
+            personsConstraintIds[secondPersonId] = constraintId;
+            return true;
+        }
+
+        if(firstPersonConstraintId == null && secondPersonConstraintId != null) {
+            // To avoid coding twice, we use the fact that contraints are symmetric.
+            return addConstraintBetweenPeople(secondPersonId, firstPersonId);
+        }
+
+        if(firstPersonConstraintId != null && secondPersonConstraintId == null) {
+            let firstPersonsConstraints = peopleConstraints[firstPersonConstraintId];
+            if(firstPersonsConstraints.people.peekFront() == firstPersonId) {
+                firstPersonsConstraints.people.pushFront(secondPersonId);
+                return true;
+            }
+            if(firstPersonsConstraints.people.peekBack() == firstPersonId) {
+                firstPersonsConstraints.people.pushFront(secondPersonId);
+                return true;
+            }
+            return false;
+        }
+
+        let firstPersonsConstraints = peopleConstraints[firstPersonConstraintId];
+        let secondPersonConstraints = peopleConstraints[secondPersonConstraintId];
+
+        // If people are at one of the ends of their respective constraints,
+        // make sure they are at the correct ends.
+        if(firstPersonsConstraints.people.peekFront() == firstPersonId) {
+            firstPersonsConstraints.people.reverse();
+        }
+
+        if(secondPersonConstraints.people.peekFront() == secondPersonId) {
+            secondPersonConstraints.people.reverse();
+        }
+
+        return true;
+    }
+
+
+    // -------------------------- TODO: IN PROGRESS END --------------------------
+
 
     // -------------------------- Calculating constraints between people --------------------------
 
@@ -221,7 +312,7 @@ export function recalculate() {
         if (aConstraints.left != null || bConstraints.right != null ||
             (leftmostOf(aId) == leftmostOf(bId))) {
             // // TODO: Erase debug in the production version
-            tools.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
+            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
             return false;
         }
 
@@ -237,7 +328,7 @@ export function recalculate() {
         dependentOnFamilies[bId] = mutualDependentFamilies;
 
         // // TODO: Erase debug in the production version
-        tools.log(bId + " to the left of " + aId + " is added");
+        console.log(bId + " to the left of " + aId + " is added");
         return true;
     }
 
@@ -248,7 +339,7 @@ export function recalculate() {
     // lines.
     // Return `false` and doesn't modify anything (except maybe for leftmost) 
     // if this constraint cannot be added.
-    function addLeftConstraint(aId: number, bId: number): boolean {
+    function addLeftConstraint(aId: model.PersonId, bId: model.PersonId): boolean {
         // We assume both aId and bId are on the same layer and that the parents have
         // already been laid out on the layers above.
         const layer = personsLayer[aId];
@@ -260,7 +351,7 @@ export function recalculate() {
         if (aConstraints.left != null || bConstraints.right != null ||
             (leftmostOf(aId) == leftmostOf(bId))) {
             // TODO: Erase debug in the production version
-            tools.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
+            console.log(bId + " to the left of " + aId + " is not possible because of their existing constraints");
             return false;
         }
 
@@ -294,28 +385,28 @@ export function recalculate() {
             // They must be on the same layer
             if (personsLayer[aLeftParentId] != personsLayer[bRightParentId]) {
                 // TODO: Erase debug in the production version
-                tools.log(bId + " to the left of " + aId + " is not possible because thier parents are in different layers");
+                console.log(bId + " to the left of " + aId + " is not possible because thier parents are in different layers");
                 return false;
             }
 
             // We will need to draw the single parented children somewhere
             if (aParentIds.length > 1 && model.isSingleParent(aLeftParentId)) {
                 // TODO: Erase debug in the production version
-                tools.log(bId + " to the left of " + aId + " is not possible because " + aLeftParentId + " is a single parent");
+                console.log(bId + " to the left of " + aId + " is not possible because " + aLeftParentId + " is a single parent");
                 return false;
             }
 
             // We will need to draw the single parented children somewhere
             if (bParentIds.length > 1 && model.isSingleParent(bRightParentId)) {
                 // TODO: Erase debug in the production version
-                tools.log(bId + " to the left of " + aId + " is not possible because " + bRightParentId + " is a single parent");
+                console.log(bId + " to the left of " + aId + " is not possible because " + bRightParentId + " is a single parent");
                 return false;
             }
 
             // Check if we can add a constraint between the ascendants. If yes, then we can add a constraint here as well.
             if (!addLeftConstraint(aLeftParentId, bRightParentId)) {
                 // TODO: Erase debug in the production version
-                tools.log(bId + " to the left of " + aId + " is not possible because the parents " + aLeftParentId + " and " + bRightParentId + " can't be joined.");
+                console.log(bId + " to the left of " + aId + " is not possible because the parents " + aLeftParentId + " and " + bRightParentId + " can't be joined.");
                 return false;
             }
             familyConstraints[aFamilyId].leftmostChild = aId;
@@ -328,24 +419,24 @@ export function recalculate() {
 
     for (const layer of layers) {
         // Finding constraints for people within the layer
-        for (const id of layer) {
-            for (const partnerId of model.partners(id)) {
-                if (personsLayer[partnerId] != personsLayer[id]) {
+        for (const personId of layer) {
+            for (const partnerId of model.partners(personId)) {
+                if (personsLayer[partnerId] != personsLayer[personId]) {
                     continue;
                 }
 
                 // So that we consider the constraints only once.
-                const constraint = "" + Math.min(id, partnerId) + "-" + Math.max(id, partnerId);
+                const constraint = "" + Math.min(personId, partnerId) + "-" + Math.max(personId, partnerId);
                 if (filledConstraints.has(constraint)) {
                     continue;
                 }
 
-                if (addLeftConstraint(partnerId, id)) {
+                if (addLeftConstraint(partnerId, personId)) {
                     filledConstraints.add(constraint);
                     continue;
                 }
 
-                if (addLeftConstraint(id, partnerId)) {
+                if (addLeftConstraint(personId, partnerId)) {
                     filledConstraints.add(constraint);
                     continue;
                 }
@@ -395,14 +486,14 @@ export function recalculate() {
     let peopleInLayout = new Set();
 
     function familiesCompletedBy(personId: number) {
-        tools.log("PERSON " + personId);
+        console.log("PERSON " + personId);
         let result = [];
         for (const familyId of model.parentOfFamilies(personId)) {
             const parentIds = model.familyParents(familyId);
             let completing = true;
             for (const parentId of parentIds) {
-                tools.log("FAMILY: " + familyId);
-                tools.log("PARENT: " + parentId);
+                console.log("FAMILY: " + familyId);
+                console.log("PARENT: " + parentId);
                 if (!peopleInLayout.has(parentId) && parentId != personId) {
                     completing = false;
                     break;
@@ -522,8 +613,8 @@ export function recalculate() {
         }
 
 
-        tools.log("Person " + personId);
-        tools.log(familiesClassification);
+        console.log("Person " + personId);
+        console.log(familiesClassification);
 
         if (familiesClassification[2].length == 1 &&
             (previousPersonIdOrNull != null &&
@@ -599,8 +690,8 @@ export function recalculate() {
         }
     }
 
-    tools.log("CONSTRIANSTS: ");
-    tools.log(constraints);
+    console.log("CONSTRIANSTS: ");
+    console.log(constraints);
 
     for (let layer of layers) {
         for (let personId of layer) {
@@ -623,8 +714,8 @@ export function recalculate() {
     }
 
     // TODO: Get rid of debug log lines for production version.
-    tools.log("Final layout:");
-    tools.log(layout);
+    console.log("Final layout:");
+    console.log(layout);
 
     // -------------------------- Placing people in correct places on the plane using the layer information and some heuristics --------------------------
 
@@ -653,9 +744,9 @@ export function recalculate() {
 
     function calculatePosition(node: LayoutNode, boxStart: number, layer: number): number {
         if (node.kind == "person") {
-            tools.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
+            console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer);
             if (personsPosition[node.id] != null) {
-                tools.log("Cached");
+                console.log("Cached");
                 return boxStart;
             }
 
@@ -680,10 +771,10 @@ export function recalculate() {
                 const leftPartnerPosition = personsPosition[node.leftPartner.personId];
                 familyPosition[node.leftPartner.familyId].x = (leftPartnerPosition.x + personsPosition[node.id].x) / 2;
             }
-            tools.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
+            console.log("Done with " + node.kind + " " + node.id + " " + boxEnd);
             return boxEnd;
         } else if (node.kind == "left-partner") {
-            tools.log("Calculating position for " + node.kind + " " + node.person.id + " " + boxStart + " on layer " + layer);
+            console.log("Calculating position for " + node.kind + " " + node.person.id + " " + boxStart + " on layer " + layer);
             let boxEnd = calculatePosition(node.person, boxStart, layer);
             if (!areEmptyFamilyNodes(node.person.singleParentFamilies) ||
                 isEmptyFamily(node.family) ||
@@ -691,21 +782,21 @@ export function recalculate() {
                 boxEnd = boxEnd + spaceBetweenPeople;
             }
             boxEnd = calculatePosition(node.family, boxEnd, layer);
-            tools.log("Done with " + node.kind + " " + node.person.id + " " + boxEnd);
+            console.log("Done with " + node.kind + " " + node.person.id + " " + boxEnd);
             return boxEnd;
         } else if (node.kind == "partners") {
-            tools.log("Calculating position for " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxStart + " on layer " + layer);
+            console.log("Calculating position for " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxStart + " on layer " + layer);
             if (personsPosition[node.left.id] != null &&
                 personsPosition[node.right.id] != null) {
-                tools.log("Cached");
+                console.log("Cached");
                 return boxStart;
             }
             if (personsPosition[node.left.id] != null) {
-                tools.log("Cached partially.");
+                console.log("Cached partially.");
                 return calculatePosition(node.right, boxStart, layer);
             }
             if (personsPosition[node.right.id] != null) {
-                tools.log("Cached partially.");
+                console.log("Cached partially.");
                 return calculatePosition(node.left, boxStart, layer);
             }
             let boxEnd = boxStart;
@@ -726,11 +817,11 @@ export function recalculate() {
             personsPosition[node.left.id] = { x: (actualBoxStart + boxEnd) / 2 - spaceBetweenPeople / 2, y: layer * spaceBetweenLayers };
             personsPosition[node.right.id] = { x: (actualBoxStart + boxEnd) / 2 + spaceBetweenPeople / 2, y: layer * spaceBetweenLayers };
             familyPosition[node.family.id] = { x: (actualBoxStart + boxEnd) / 2, y: layer * spaceBetweenLayers };
-            tools.log("Done with " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxEnd);
+            console.log("Done with " + node.kind + " " + node.left.id + "," + node.right.id + " " + boxEnd);
 
             return boxEnd;
         } else if (node.kind == "family") {
-            tools.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer + " depth " + node.depth);
+            console.log("Calculating position for " + node.kind + " " + node.id + " " + boxStart + " on layer " + layer + " depth " + node.depth);
 
             if (familyPosition[node.id] != null) {
                 return boxStart;
@@ -747,12 +838,12 @@ export function recalculate() {
                 if (first) { first = false; } else { boxEnd += spaceBetweenPeople; }
                 const memberNode = layout[member.layer][member.position];
                 boxEnd = calculatePosition(memberNode, boxEnd, member.layer);
-                tools.log("Setting layerBox " + member.layer + " " + boxEnd);
+                console.log("Setting layerBox " + member.layer + " " + boxEnd);
                 layerBox[member.layer] = Math.max(layerBox[member.layer], boxEnd);
             }
             const depth = depthFamilyBase + node.depth * depthModifier;
             familyPosition[node.id] = { x: (boxStart + boxEnd) / 2, y: layer * spaceBetweenLayers + depth };
-            tools.log("Done with " + node.kind + " " + node.id + " " + boxEnd + " y pos of family is " + familyPosition[node.id].y);
+            console.log("Done with " + node.kind + " " + node.id + " " + boxEnd + " y pos of family is " + familyPosition[node.id].y);
 
             return boxEnd;
         }
@@ -766,7 +857,7 @@ export function recalculate() {
         if (boxEnd > 0) {
             boxEnd = boxEnd + spaceBetweenPeople;
         }
-        tools.log("Layer " + i + " boxEnd: " + boxEnd);
+        console.log("Layer " + i + " boxEnd: " + boxEnd);
         for (const node of layoutLayer) {
             let newBoxEnd = calculatePosition(node, boxEnd, i);
 
@@ -776,9 +867,9 @@ export function recalculate() {
         biggestBoxEnd = Math.max(boxEnd, biggestBoxEnd);
     }
 
-    tools.log("Persons positions:");
-    tools.log(personsPosition);
+    console.log("Persons positions:");
+    console.log(personsPosition);
 
-    tools.log("Families positions:");
-    tools.log(familyPosition);
+    console.log("Families positions:");
+    console.log(familyPosition);
 }

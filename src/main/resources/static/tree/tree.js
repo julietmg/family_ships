@@ -1,10 +1,11 @@
 // import * as d3 from "d3";
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
-import * as tools from "./tools.js";
+import * as config from "./config.js";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
+import "./scc_test.js";
 // Showcase the icons that we have in the debug mode.
-if (tools.debug()) {
+if (config.debug) {
     function showDebugIcon(path) {
         const iconSvg = d3.select("body").append("svg")
             .attr("width", 200)
@@ -435,7 +436,7 @@ export function updateGraphics() {
             }
             await updateSelectionGraphics();
         }));
-        if (tools.debug()) {
+        if (config.debug) {
             familyHook.append("text").text((d) => d);
         }
         let familyDeleteButton = familyHook.append("g")
@@ -551,8 +552,12 @@ export function updateGraphics() {
                 styleString += attr + ":" + textAreaStyleAttrs[attr];
                 styleString += ";";
             }
+            let nameText = model.people[+d].names.join(' ');
+            if (config.debug) {
+                nameText = d + "\n" + nameText;
+            }
             return '<textarea oninput="updateGraphics()" style="' + styleString + '" rows="2" id="' + personNameBoxTag(d) + '">' +
-                model.people[+d].names.join(' ') +
+                nameText +
                 '</textarea>';
         });
         let personDeleteButton = personHook.append("g")

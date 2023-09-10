@@ -1,12 +1,14 @@
 import * as d3 from "d3";
 // import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-import * as tools from "./tools.js";
+import * as config from "./config.js";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
 
+import  "./scc_test.js";
+
 // Showcase the icons that we have in the debug mode.
-if (tools.debug()) {
+if (config.debug) {
     function showDebugIcon(path: string) {
         const iconSvg = d3.select("body").append("svg")
             .attr("width", 200)
@@ -51,7 +53,7 @@ const addPersonSvg = d3.select("body").append("svg")
         await updateAll();
     });
 
-const svg = d3.select("body").append("svg").attr("class","tree")
+const svg = d3.select("body").append("svg").attr("class", "tree")
     .attr("width", "100%")
     .attr("height", "100%");
 
@@ -561,7 +563,7 @@ export function updateGraphics() {
                     await updateSelectionGraphics();
                 }));
 
-                if (tools.debug()) {
+                if (config.debug) {
                     familyHook.append("text").text((d: number) => d);
                 }
 
@@ -651,7 +653,7 @@ export function updateGraphics() {
         );
 
     // -------------------------- Drawing people nodes --------------------------
-    
+
     function personNameBoxTag(d: number): string {
         return 'name_' + d;
     }
@@ -703,8 +705,12 @@ export function updateGraphics() {
                             styleString += attr + ":" + textAreaStyleAttrs[attr];
                             styleString += ";";
                         }
+                        let nameText = model.people[+d].names.join(' ');
+                        if (config.debug) {
+                            nameText = d + "\n" + nameText;
+                        }
                         return '<textarea oninput="updateGraphics()" style="' + styleString + '" rows="2" id="' + personNameBoxTag(d) + '">' +
-                            model.people[+d].names.join(' ') +
+                            nameText +
                             '</textarea>';
                     });
 
@@ -789,7 +795,7 @@ export function updateGraphics() {
                     .transition().delay(0).attr("display", null)
                     .transition().duration(500).style("opacity", 1);
 
-                function inputContainsDifferentName(d : number) {
+                function inputContainsDifferentName(d: number) {
                     let boxData = document.getElementById(personNameBoxTag(d)) as HTMLTextAreaElement;
                     let namesInBox = boxData.value.split(/\s+/);
                     let normalizedNames = namesInBox.join(' ');
