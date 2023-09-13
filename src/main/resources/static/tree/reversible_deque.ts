@@ -2,6 +2,10 @@ import * as deque from "./deque.js";
 
 export type Node<T> = deque.Node<T>;
 
+// This is the same as `deque.Deque`, but it allows for O(1) reversal.
+// This incurs a big cost on `appendLeft` and `appendRight` which are now O(n).
+// Be  way of using pointers returned by `pushLeft` as they have different meaning
+// depending on the `reversed` field. Use the provided function instead.
 export class ReversibleDeque<T> {
     data: deque.Deque<T>
     reversed: boolean
@@ -9,62 +13,76 @@ export class ReversibleDeque<T> {
         this.data = new deque.Deque(...initialValues);
         this.reversed = false;
     }
-    pushFront(value: T) {
-        if (this.reversed) {
-            return this.data.pushBack(value);
+    left(node : Node<T>): Node<T> {
+        if(this.reversed) {
+            return node.right;
         }
-        return this.data.pushFront(value);
+        return node.left;
     }
-    popFront() {
-        if (this.reversed) {
-            return this.data.popBack();
+    right(node: Node<T>): Node<T> {
+        if(this.reversed) {
+            return node.left;
         }
-        return this.data.popFront();
+        return node.right;
     }
-    peekFront() {
+    pushLeft(value: T) {
         if (this.reversed) {
-            return this.data.peekBack();
+            return this.data.pushRight(value);
         }
-        return this.data.peekFront();
+        return this.data.pushLeft(value);
     }
-    pushBack(value: T) {
+    popLeft() {
         if (this.reversed) {
-            return this.data.pushFront(value);
+            return this.data.popRight();
         }
-        return this.data.pushBack(value);
+        return this.data.popLeft();
     }
-    popBack() {
+    peekLeft() {
         if (this.reversed) {
-            return this.data.popFront();
+            return this.data.peekRight();
         }
-        return this.data.popBack();
+        return this.data.peekLeft();
     }
-    peekBack() {
+    pushRight(value: T) {
         if (this.reversed) {
-            return this.data.peekFront();
+            return this.data.pushLeft(value);
         }
-        return this.data.peekBack();
+        return this.data.pushRight(value);
+    }
+    popRight() {
+        if (this.reversed) {
+            return this.data.popLeft();
+        }
+        return this.data.popRight();
+    }
+    peekRight() {
+        if (this.reversed) {
+            return this.data.peekLeft();
+        }
+        return this.data.peekRight();
     }
     reverse() {
         this.reversed = !this.reversed;
     }
-    appendBack(b : ReversibleDeque<T>) {
-        if(this.reversed == b.reversed) {
-            this.data.appendBack(b.data);
-        }
-        else {
+    appendRight(b : ReversibleDeque<T>) {
+        if(this.reversed != b.reversed) {
             b.data.reverse();
-            this.data.appendBack(b.data);
+        }
+        if(this.reversed) {
+            this.data.appendLeft(b.data);
+        } else {
+            this.data.appendRight(b.data);
         }
     }
 
-    appendFront(b : ReversibleDeque<T>) {
-        if(this.reversed == b.reversed) {
-            this.data.appendFront(b.data);
-        }
-        else {
+    appendLeft(b : ReversibleDeque<T>) {
+        if(this.reversed != b.reversed) {
             b.data.reverse();
-            this.data.appendFront(b.data);
+        }
+        if(this.reversed) {
+            this.data.appendRight(b.data);
+        } else {
+            this.data.appendLeft(b.data);
         }
     }
     

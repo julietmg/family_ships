@@ -4,31 +4,31 @@ import * as utils from "./utils.js";
 if (config.test) {
     console.log("deque_test.ts: Starting [simple]");
     let d = new deque.Deque();
-    d.pushFront(1);
-    d.pushFront(2);
-    d.pushFront(3);
-    d.pushFront(4);
-    console.assert(d.peekFront() == 4);
-    console.assert(d.peekBack() == 1);
-    d.pushBack(6);
-    console.assert(d.popBack() == 6);
-    console.assert(d.popFront() == 4);
-    console.assert(d.popBack() == 1);
+    d.pushLeft(1);
+    d.pushLeft(2);
+    d.pushLeft(3);
+    d.pushLeft(4);
+    console.assert(d.peekLeft() == 4);
+    console.assert(d.peekRight() == 1);
+    d.pushRight(6);
+    console.assert(d.popRight() == 6);
+    console.assert(d.popLeft() == 4);
+    console.assert(d.popRight() == 1);
     console.log("deque_test.ts: Finished [simple]");
 }
 if (config.test) {
     console.log("deque_test.ts: Starting [merge_back]");
     let a = new deque.Deque();
-    a.pushBack(1);
-    a.pushBack(2);
-    a.pushBack(3);
-    a.pushBack(4);
+    a.pushRight(1);
+    a.pushRight(2);
+    a.pushRight(3);
+    a.pushRight(4);
     let b = new deque.Deque();
-    b.pushBack(5);
-    b.pushBack(6);
-    b.pushBack(7);
-    b.pushBack(8);
-    a.appendBack(b);
+    b.pushRight(5);
+    b.pushRight(6);
+    b.pushRight(7);
+    b.pushRight(8);
+    a.appendRight(b);
     console.assert(utils.arraysEqual(b.toArray(), []));
     a.reverse();
     // This output might be useful when debugging this test.
@@ -46,16 +46,16 @@ if (config.test) {
 if (config.test) {
     console.log("deque_test.ts: Starting [merge_front]");
     let a = new deque.Deque();
-    a.pushBack(1);
-    a.pushBack(2);
-    a.pushBack(3);
-    a.pushBack(4);
+    a.pushRight(1);
+    a.pushRight(2);
+    a.pushRight(3);
+    a.pushRight(4);
     let b = new deque.Deque();
-    b.pushBack(5);
-    b.pushBack(6);
-    b.pushBack(7);
-    b.pushBack(8);
-    a.appendFront(b);
+    b.pushRight(5);
+    b.pushRight(6);
+    b.pushRight(7);
+    b.pushRight(8);
+    a.appendLeft(b);
     console.assert(utils.arraysEqual(b.toArray(), []));
     // This output might be useful when debugging this test.
     // console.log(a);

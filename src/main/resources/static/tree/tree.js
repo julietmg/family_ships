@@ -284,7 +284,7 @@ export function updateGraphics() {
     }, update => {
         let changedPosition = update.filter((d) => !posEqual(personsDrawnPosition[d.parentId], layout.personsPosition[d.parentId]) ||
             !posEqual(familyDrawnPosition[d.familyId], layout.familyPosition[d.familyId]));
-        // TODO: Verify if path is different. We need the previous path here!
+        // TODO: Verify if path is different. We need the leftious path here!
         changedPosition.select("path")
             .transition().duration(500)
             .attr("stroke-dasharray", (d) => fadePathStrokeBeforeTransition(parentPathPoints(personsDrawnPosition[d.parentId], familyDrawnPosition[d.familyId]))["stroke-dasharray"])

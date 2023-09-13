@@ -1,70 +1,74 @@
+// This `Deque` is special, as it exposes the fact that it's implemented as
+// a doubly linked list and returns the information about the nodes when 
+// pushing.
+// This means you need to be very careful when popping things.
 export class Deque {
     constructor(...initialValues) {
         this.front = undefined;
         this.back = undefined;
         initialValues.forEach(initialValue => {
-            this.pushBack(initialValue);
+            this.pushRight(initialValue);
         });
     }
-    pushFront(value) {
+    pushLeft(value) {
         if (this.front == undefined) {
             this.front = { value };
             this.back = this.front;
         }
         else {
-            this.front.prev = { value, next: this.front };
-            this.front = this.front.prev;
+            this.front.left = { value, right: this.front };
+            this.front = this.front.left;
         }
         return this.front;
     }
-    peekFront() {
+    peekLeft() {
         if (this.front != undefined) {
             return this.front.value;
         }
         return undefined;
     }
-    popFront() {
-        let value = this.peekFront();
+    popLeft() {
+        let value = this.peekLeft();
         if (value == undefined || this.front == this.back) {
             this.front = undefined;
             this.back = undefined;
         }
         else {
-            this.front = this.front.next;
-            this.front.prev = undefined;
+            this.front = this.front.right;
+            this.front.left = undefined;
         }
         return value;
     }
-    pushBack(value) {
+    pushRight(value) {
         if (this.back == undefined) {
             this.front = { value };
             this.back = this.front;
         }
         else {
-            this.back.next = { value, prev: this.back };
-            this.back = this.back.next;
+            this.back.right = { value, left: this.back };
+            this.back = this.back.right;
         }
         return this.back;
     }
-    peekBack() {
+    peekRight() {
         if (this.back != undefined) {
             return this.back.value;
         }
         return undefined;
     }
-    popBack() {
-        let value = this.peekBack();
+    popRight() {
+        let value = this.peekRight();
         if (value == undefined || this.front == this.back) {
             this.front = undefined;
             this.back = undefined;
         }
         else {
-            this.back = this.back.prev;
-            this.back.next = undefined;
+            this.back = this.back.left;
+            this.back.right = undefined;
         }
         return value;
     }
-    appendBack(b) {
+    appendRight(b) {
         if (b.front == undefined) {
             return;
         }
@@ -73,15 +77,15 @@ export class Deque {
             this.back = b.back;
         }
         else {
-            this.back.next = b.front;
-            b.front.prev = this.back;
+            this.back.right = b.front;
+            b.front.left = this.back;
             this.back = b.back;
         }
         b.back = undefined;
         b.front = undefined;
         return;
     }
-    appendFront(b) {
+    appendLeft(b) {
         if (b.back == undefined) {
             return;
         }
@@ -90,8 +94,8 @@ export class Deque {
             this.back = b.back;
         }
         else {
-            this.front.prev = b.back;
-            b.back.next = this.front;
+            this.front.left = b.back;
+            b.back.right = this.front;
             this.front = b.front;
         }
         b.back = undefined;
@@ -104,10 +108,10 @@ export class Deque {
         }
         let current = this.front;
         while (current != undefined) {
-            const next = current.next;
-            current.next = current.prev;
-            current.prev = next;
-            current = next;
+            const right = current.right;
+            current.right = current.left;
+            current.left = right;
+            current = right;
         }
         const back = this.back;
         this.back = this.front;
@@ -121,7 +125,7 @@ export class Deque {
         let current = this.front;
         while (current != this.back) {
             result.push(current.value);
-            current = current.next;
+            current = current.right;
         }
         result.push(current.value);
         return result;

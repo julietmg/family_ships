@@ -111,3 +111,77 @@ if(config.test) {
 
     console.log("layout_test.ts: Finished [nuclear]");
 }
+
+if(config.test) {
+    console.log("layout_test.ts: Starting [nuclear constraints]");
+    model.reset();
+    
+    for(let i = 1; i <= 14; i += 1){
+        model.fakeNewPerson("name" + i);
+    }
+
+    // Parents: 1 2
+    // Children: 3 4
+    model.fakeNewFamily(); model.fakeAttachParent(1,1); model.fakeAttachParent(1,2);
+    model.fakeAttachChild(1,3);
+    model.fakeAttachChild(1,4);
+
+    // Parents: 5 6
+    // Children 7
+    model.fakeNewFamily(); model.fakeAttachParent(2,5); model.fakeAttachParent(2,6);
+    model.fakeAttachChild(2,7);
+
+    // Parents: 3 7
+    // Children: 8
+    model.fakeNewFamily(); model.fakeAttachParent(3,3); model.fakeAttachParent(3,7);
+    model.fakeAttachChild(3,8);
+
+    // Parents: 7 11
+    // Children 12
+    model.fakeNewFamily(); model.fakeAttachParent(4,7); model.fakeAttachParent(4,11);
+    model.fakeAttachChild(4,12);
+
+    // Parents: 8 12
+    // Children 13
+    model.fakeNewFamily(); model.fakeAttachParent(5,8); model.fakeAttachParent(5,12);
+    model.fakeAttachChild(5,13);
+
+    // Parents: 10
+    // Children 14
+    model.fakeNewFamily(); model.fakeAttachParent(6,10);
+    model.fakeAttachChild(6,14);
+
+    // Parents: 13 14
+    model.fakeNewFamily(); model.fakeAttachParent(7,13); model.fakeAttachParent(7,14);
+
+    layout.recalculateLayerAssignment();
+    layout.recalculateConstraints();
+
+
+    // This output might be useful when debugging this test.
+    console.log("layers:");
+    console.log(layout.layers);
+    let sccs : Record<scc.SccId,Array<model.PersonId>> = {};
+    for(const personId in model.people) {
+        if(sccs[scc.personsSccId[personId]] == undefined) {
+            sccs[scc.personsSccId[personId]] = [];
+        }
+        sccs[scc.personsSccId[personId]].push(+personId);    
+    }
+    console.log("sccs:");
+    console.log(sccs);
+    console.log("constraints:");
+    console.log(layout.getBlock(1).toArray());
+    console.log(layout.getBlock(3).toArray());
+    console.log(layout.getBlock(8).toArray());
+    console.log(layout.getBlock(13).toArray());
+
+
+    console.assert(utils.arraysEqual(layout.getBlock(1).toArray(),[1,2,5,6]));
+    console.assert(utils.arraysEqual(layout.getBlock(3).toArray(),[7,11,3]));
+    console.assert(utils.arraysEqual(layout.getBlock(8).toArray(),[12,8]));
+    console.assert(utils.arraysEqual(layout.getBlock(13).toArray(),[13]));
+
+    console.log("layout_test.ts: Finished [nuclear constraints]");
+    model.reset();
+}

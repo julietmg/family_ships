@@ -41,16 +41,19 @@ export async function reload() {
         }
     }
 
-    if(config.debug) {
+    // if(config.debug) {
         console.log("Reloaded families:");
         console.log(families);
         console.log("Reloaded people:");
         console.log(people);
-    }
+    // }
 }
 
 // Note that this must be followed by a call to `reload()` in production and call to `recalculate()` in test mode.
 export async function newPerson(spaceSeparatedNames: string): Promise<PersonId> {
+    if(config.debug) {
+        console.log("newPerson " + spaceSeparatedNames);
+    }
     if (config.test) { return fakeNewPerson(spaceSeparatedNames); }
     return await fetch("/model/new_person", {
         method: 'POST',
@@ -64,6 +67,9 @@ export async function newPerson(spaceSeparatedNames: string): Promise<PersonId> 
 }
 
 export async function deletePerson(personId: PersonId): Promise<boolean> {
+    if(config.debug) {
+        console.log("deletePerson " + personId);
+    }
     if (config.test) { return fakeDeletePerson(personId); }
     return await fetch("/model/delete_person", {
         method: 'POST',
@@ -77,6 +83,9 @@ export async function deletePerson(personId: PersonId): Promise<boolean> {
 }
 
 export async function newFamily(): Promise<FamilyId> {
+    if(config.debug) {
+        console.log("newFamily");
+    }
     if (config.test) { return fakeNewFamily(); }
     return await fetch("/model/new_family", {
         method: 'POST',
@@ -88,6 +97,9 @@ export async function newFamily(): Promise<FamilyId> {
 }
 
 export async function deleteFamily(familyId: FamilyId): Promise<boolean> {
+    if(config.debug) {
+        console.log("deleteFamily " + familyId);
+    }
     if (config.test) { fakeDeleteFamily(familyId); }
     return await fetch("/model/delete_family", {
         method: 'POST',
@@ -101,6 +113,9 @@ export async function deleteFamily(familyId: FamilyId): Promise<boolean> {
 }
 
 export async function attachChild(familyId: FamilyId, childId: PersonId): Promise<boolean> {
+    if(config.debug) {
+        console.log("attachChild " + familyId + " " + childId);
+    }
     if (config.test) { return fakeAttachChild(familyId, childId); }
     return await fetch("/model/attach_child", {
         method: 'POST',
@@ -115,6 +130,9 @@ export async function attachChild(familyId: FamilyId, childId: PersonId): Promis
 }
 
 export async function detachChild(familyId: FamilyId, childId: PersonId): Promise<boolean> {
+    if(config.debug) {
+        console.log("detachChild " + familyId + " " + childId);
+    }
     if (config.test) { return fakeDetachChild(familyId, childId); }
     return await fetch("/model/detach_child", {
         method: 'POST',
@@ -129,6 +147,9 @@ export async function detachChild(familyId: FamilyId, childId: PersonId): Promis
 }
 
 export async function attachParent(familyId: FamilyId, parentId: PersonId): Promise<boolean> {
+    if(config.debug) {
+        console.log("attachParent " + familyId + " " + parentId);
+    }
     if (config.test) { return fakeAttachParent(familyId, parentId); }
     return await fetch("/model/attach_parent", {
         method: 'POST',
@@ -143,6 +164,9 @@ export async function attachParent(familyId: FamilyId, parentId: PersonId): Prom
 }
 
 export async function detachParent(familyId: FamilyId, parentId: PersonId): Promise<boolean> {
+    if(config.debug) {
+        console.log("detachParent " + familyId + " " + parentId);
+    }
     if (config.test) { return fakeDetachParent(familyId, parentId); }
     return await fetch("/model/detach_parent", {
         method: 'POST',
@@ -157,6 +181,9 @@ export async function detachParent(familyId: FamilyId, parentId: PersonId): Prom
 }
 
 export async function setNames(personId: PersonId, spaceSeparatedNames: string): Promise<boolean> {
+    if(config.debug) {
+        console.log("setNames " + personId + " " + spaceSeparatedNames);
+    }
     if(config.test) { return fakeSetNames(personId, spaceSeparatedNames); }
     return await fetch("/model/set_names", {
         method: 'POST',
@@ -256,25 +283,6 @@ export function childOfFamilies(personId: PersonId) {
     return result;
 }
 
-
-// Singleton families are the ones this person is the sole
-// parent of.
-export function parentOfSingleFamilies(personId: PersonId) {
-    let result = [];
-    for (const familyId of parentOfFamilies(personId)) {
-        let parents = familyParents(familyId);
-        if (parents.length == 1 && parents[0] == personId) {
-            result.push(familyId);
-        }
-    }
-    result.sort((a, b) => a - b);
-    return result;
-}
-
-export function isSingleParent(personId: PersonId) {
-    return parentOfSingleFamilies(personId).length > 0;
-}
-
 function partnerClusterRec(personId: number, result: Set<number>) {
     if (result.has(personId)) {
         return;
@@ -308,6 +316,12 @@ export function fakeDeletePerson(personId: PersonId) : boolean {
     if(people[personId] == undefined) {
         return false;
     }
+    for(const familyId of childOfFamilies(personId)) {
+        fakeDetachChild(familyId, personId);
+    }
+    for(const familyId of parentOfFamilies(personId)) {
+        fakeDetachParent(familyId, personId);
+    }
     delete people[personId];
     return true;
 }
@@ -324,6 +338,12 @@ export function fakeNewFamily() : FamilyId {
 export function fakeDeleteFamily(familyId: FamilyId) : boolean {
     if(families[familyId] == undefined) {
         return false;
+    }
+    for(const parentId of familyParents(familyId)) {
+        fakeDetachParent(familyId, parentId);
+    }
+    for(const childId of familyChildren(familyId)) {
+        fakeDetachChild(familyId, childId);
     }
     delete families[familyId];
     return true;
@@ -343,7 +363,7 @@ export function fakeDetachChild(familyId: FamilyId, childId: PersonId) : boolean
         return false;
     }
     families[familyId].childrenIds = families[familyId].childrenIds.filter((id) => id != childId);
-    people[childId].childOfFamiliesIds = people[familyId].childOfFamiliesIds.filter((id) => id != familyId);
+    people[childId].childOfFamiliesIds = people[childId].childOfFamiliesIds.filter((id) => id != familyId);
     return true;
 }
 
@@ -360,8 +380,8 @@ export function fakeDetachParent(familyId: FamilyId, parentId: PersonId) : boole
     if(families[familyId] == undefined || people[parentId] == undefined) {
         return false;
     }
-    families[familyId].childrenIds = families[familyId].parentIds.filter((id) => id != parentId);
-    people[parentId].childOfFamiliesIds = people[familyId].parentOfFamilyIds.filter((id) => id != familyId);
+    families[familyId].parentIds = families[familyId].parentIds.filter((id) => id != parentId);
+    people[parentId].parentOfFamilyIds = people[parentId].parentOfFamilyIds.filter((id) => id != familyId);
     return true;
 }
 

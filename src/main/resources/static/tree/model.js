@@ -19,15 +19,18 @@ export async function reload() {
             people[person.id] = person;
         }
     }
-    if (config.debug) {
-        console.log("Reloaded families:");
-        console.log(families);
-        console.log("Reloaded people:");
-        console.log(people);
-    }
+    // if(config.debug) {
+    console.log("Reloaded families:");
+    console.log(families);
+    console.log("Reloaded people:");
+    console.log(people);
+    // }
 }
 // Note that this must be followed by a call to `reload()` in production and call to `recalculate()` in test mode.
 export async function newPerson(spaceSeparatedNames) {
+    if (config.debug) {
+        console.log("newPerson " + spaceSeparatedNames);
+    }
     if (config.test) {
         return fakeNewPerson(spaceSeparatedNames);
     }
@@ -42,6 +45,9 @@ export async function newPerson(spaceSeparatedNames) {
     }).then(data => data.json());
 }
 export async function deletePerson(personId) {
+    if (config.debug) {
+        console.log("deletePerson " + personId);
+    }
     if (config.test) {
         return fakeDeletePerson(personId);
     }
@@ -56,6 +62,9 @@ export async function deletePerson(personId) {
     }).then(data => data.json());
 }
 export async function newFamily() {
+    if (config.debug) {
+        console.log("newFamily");
+    }
     if (config.test) {
         return fakeNewFamily();
     }
@@ -68,6 +77,9 @@ export async function newFamily() {
     }).then(data => data.json());
 }
 export async function deleteFamily(familyId) {
+    if (config.debug) {
+        console.log("deleteFamily " + familyId);
+    }
     if (config.test) {
         fakeDeleteFamily(familyId);
     }
@@ -82,6 +94,9 @@ export async function deleteFamily(familyId) {
     }).then(data => data.json());
 }
 export async function attachChild(familyId, childId) {
+    if (config.debug) {
+        console.log("attachChild " + familyId + " " + childId);
+    }
     if (config.test) {
         return fakeAttachChild(familyId, childId);
     }
@@ -97,6 +112,9 @@ export async function attachChild(familyId, childId) {
     }).then(data => data.json());
 }
 export async function detachChild(familyId, childId) {
+    if (config.debug) {
+        console.log("detachChild " + familyId + " " + childId);
+    }
     if (config.test) {
         return fakeDetachChild(familyId, childId);
     }
@@ -112,6 +130,9 @@ export async function detachChild(familyId, childId) {
     }).then(data => data.json());
 }
 export async function attachParent(familyId, parentId) {
+    if (config.debug) {
+        console.log("attachParent " + familyId + " " + parentId);
+    }
     if (config.test) {
         return fakeAttachParent(familyId, parentId);
     }
@@ -127,6 +148,9 @@ export async function attachParent(familyId, parentId) {
     }).then(data => data.json());
 }
 export async function detachParent(familyId, parentId) {
+    if (config.debug) {
+        console.log("detachParent " + familyId + " " + parentId);
+    }
     if (config.test) {
         return fakeDetachParent(familyId, parentId);
     }
@@ -142,6 +166,9 @@ export async function detachParent(familyId, parentId) {
     }).then(data => data.json());
 }
 export async function setNames(personId, spaceSeparatedNames) {
+    if (config.debug) {
+        console.log("setNames " + personId + " " + spaceSeparatedNames);
+    }
     if (config.test) {
         return fakeSetNames(personId, spaceSeparatedNames);
     }
@@ -234,22 +261,6 @@ export function childOfFamilies(personId) {
     result.sort((a, b) => a - b);
     return result;
 }
-// Singleton families are the ones this person is the sole
-// parent of.
-export function parentOfSingleFamilies(personId) {
-    let result = [];
-    for (const familyId of parentOfFamilies(personId)) {
-        let parents = familyParents(familyId);
-        if (parents.length == 1 && parents[0] == personId) {
-            result.push(familyId);
-        }
-    }
-    result.sort((a, b) => a - b);
-    return result;
-}
-export function isSingleParent(personId) {
-    return parentOfSingleFamilies(personId).length > 0;
-}
 function partnerClusterRec(personId, result) {
     if (result.has(personId)) {
         return;
@@ -279,6 +290,12 @@ export function fakeDeletePerson(personId) {
     if (people[personId] == undefined) {
         return false;
     }
+    for (const familyId of childOfFamilies(personId)) {
+        fakeDetachChild(familyId, personId);
+    }
+    for (const familyId of parentOfFamilies(personId)) {
+        fakeDetachParent(familyId, personId);
+    }
     delete people[personId];
     return true;
 }
@@ -293,6 +310,12 @@ export function fakeNewFamily() {
 export function fakeDeleteFamily(familyId) {
     if (families[familyId] == undefined) {
         return false;
+    }
+    for (const parentId of familyParents(familyId)) {
+        fakeDetachParent(familyId, parentId);
+    }
+    for (const childId of familyChildren(familyId)) {
+        fakeDetachChild(familyId, childId);
     }
     delete families[familyId];
     return true;
@@ -310,7 +333,7 @@ export function fakeDetachChild(familyId, childId) {
         return false;
     }
     families[familyId].childrenIds = families[familyId].childrenIds.filter((id) => id != childId);
-    people[childId].childOfFamiliesIds = people[familyId].childOfFamiliesIds.filter((id) => id != familyId);
+    people[childId].childOfFamiliesIds = people[childId].childOfFamiliesIds.filter((id) => id != familyId);
     return true;
 }
 export function fakeAttachParent(familyId, parentId) {
@@ -325,8 +348,8 @@ export function fakeDetachParent(familyId, parentId) {
     if (families[familyId] == undefined || people[parentId] == undefined) {
         return false;
     }
-    families[familyId].childrenIds = families[familyId].parentIds.filter((id) => id != parentId);
-    people[parentId].childOfFamiliesIds = people[familyId].parentOfFamilyIds.filter((id) => id != familyId);
+    families[familyId].parentIds = families[familyId].parentIds.filter((id) => id != parentId);
+    people[parentId].parentOfFamilyIds = people[parentId].parentOfFamilyIds.filter((id) => id != familyId);
     return true;
 }
 export function fakeSetNames(personId, spaceSeparatedNames) {
