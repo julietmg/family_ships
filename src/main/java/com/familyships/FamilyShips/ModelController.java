@@ -38,8 +38,8 @@ public class ModelController {
     private FamilyParentRepository familyParentRepository;
 
     // /model/people
-    // Input: Nothing
-    // Output: personId,names,parentOfFamilies,childOfFamilies
+    // Input: No input
+    // Output: list of people, where person is personId,names,parentOfFamiliesIds,childOfFamiliesIds
     @GetMapping("/model/people")
     public @ResponseBody List<Person> people() {
         List<Person> result = new ArrayList<Person>();
@@ -50,8 +50,8 @@ public class ModelController {
     }
 
     // /model/families
-    // Input: Nothing
-    // Output: familyId,children,parents
+    // Input: No input
+    // Output: list of families, where a family consists of familyId,children,parents
     @GetMapping("/model/families")
     public @ResponseBody List<Family> families() {
         List<Family> result = new ArrayList<Family>();
@@ -76,7 +76,7 @@ public class ModelController {
 
     // /model/delete_person
     // Input: personId
-    // Output deleted
+    // Output: whether deleted or not
     @PostMapping("/model/delete_person")
     public @ResponseBody boolean deletePerson(@RequestParam Integer personId, Principal principal) {
         // TODO: Authorization
@@ -99,7 +99,7 @@ public class ModelController {
     }
 
     // /model/new_family
-    // Input: Nothing
+    // Input: No input
     // Output: familyId
     @PostMapping("/model/new_family")
     public @ResponseBody Integer newFamily(Principal principal) {
@@ -111,7 +111,7 @@ public class ModelController {
 
     // /model/delete_family
     // Input: familyId
-    // Output: deleted
+    // Output: whether deleted or not
     @PostMapping("/model/delete_family")
     public @ResponseBody boolean deleteFamily(@RequestParam Integer familyId, Principal principal) {
         // TODO: Authorization
@@ -136,7 +136,7 @@ public class ModelController {
 
     // /model/attach_child
     // Input: personId, familyId
-    // Output: added
+    // Output: whether attached or not
     @PostMapping(value = "/model/attach_child")
     public @ResponseBody boolean attachChild(@RequestParam Integer familyId,
             @RequestParam Integer childId,
@@ -155,7 +155,7 @@ public class ModelController {
 
     // /model/detach_child
     // Input: personId, familyId
-    // Output: deleted
+    // Output: whether detached or not
     @PostMapping(value = "/model/detach_child")
     public @ResponseBody boolean detachChild(@RequestParam Integer familyId,
             @RequestParam Integer childId,
@@ -167,7 +167,7 @@ public class ModelController {
 
     // /model/attach_parent
     // Input: personId, familyId
-    // Output: added
+    // Output: whether attached or not
     @PostMapping("/model/attach_parent")
     public @ResponseBody boolean attachParent(@RequestParam Integer familyId,
             @RequestParam Integer parentId,
@@ -186,7 +186,7 @@ public class ModelController {
 
     // /model/detach_parent
     // Input: personId, familyId
-    // Output: deleted
+    // Output: whether detached or not
     @PostMapping("/model/detach_parent")
     public @ResponseBody boolean detachParent(@RequestParam Integer familyId,
             @RequestParam Integer parentId,
@@ -198,7 +198,7 @@ public class ModelController {
 
     // /model/set_names
     // Input: personId, spaceSeparatedNames
-    // Output: set
+    // Output: whether the names were set or not
     @PostMapping("/model/set_names")
     public @ResponseBody boolean setNames(@RequestParam Integer personId,
             @RequestParam String spaceSeparatedNames,
