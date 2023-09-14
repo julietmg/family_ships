@@ -146,28 +146,28 @@ if (config.test) {
     model.fakeAttachParent(7, 14);
     layout.recalculateLayerAssignment();
     layout.recalculateConstraints();
+    layout.recalculate();
     // This output might be useful when debugging this test.
-    // console.log("layers:");
-    // console.log(layout.layers);
-    // let sccs = {};
-    // for (const personId in model.people) {
-    //     if (sccs[scc.personsSccId[personId]] == undefined) {
-    //         sccs[scc.personsSccId[personId]] = [];
-    //     }
-    //     sccs[scc.personsSccId[personId]].push(+personId);
-    // }
-    // console.log("sccs:");
-    // console.log(sccs);
-    // console.log("constraints:");
-    // console.log(layout.getBlock(1).toArray());
-    // console.log(layout.getBlock(3).toArray());
-    // console.log(layout.getBlock(8).toArray());
-    // console.log(layout.getBlock(13).toArray());
+    console.log("layers:");
+    console.log(layout.layers);
+    let sccs = {};
+    for (const personId in model.people) {
+        if (sccs[scc.personsSccId[personId]] == undefined) {
+            sccs[scc.personsSccId[personId]] = [];
+        }
+        sccs[scc.personsSccId[personId]].push(+personId);
+    }
+    console.log("sccs:");
+    console.log(sccs);
+    console.log("constraints:");
+    console.log(layout.getBlock(1).toArray());
+    console.log(layout.getBlock(3).toArray());
+    console.log(layout.getBlock(8).toArray());
+    console.log(layout.getBlock(13).toArray());
     console.assert(utils.arraysEqual(layout.getBlock(1).toArray(), [1, 2, 5, 6]));
     console.assert(utils.arraysEqual(layout.getBlock(3).toArray(), [3, 7, 11]));
     console.assert(utils.arraysEqual(layout.getBlock(8).toArray(), [8, 12]));
     console.assert(utils.arraysEqual(layout.getBlock(13).toArray(), [13]));
     console.log("layout_test.ts: Finished [nuclear constraints]");
-    model.reset();
 }
 //# sourceMappingURL=layout_test.js.map

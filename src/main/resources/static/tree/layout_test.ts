@@ -156,6 +156,7 @@ if(config.test) {
 
     layout.recalculateLayerAssignment();
     layout.recalculateConstraints();
+    layout.recalculate();
 
 
     // This output might be useful when debugging this test.
@@ -178,10 +179,9 @@ if(config.test) {
 
 
     console.assert(utils.arraysEqual(layout.getBlock(1).toArray(),[1,2,5,6]));
-    console.assert(utils.arraysEqual(layout.getBlock(3).toArray(),[7,11,3]));
-    console.assert(utils.arraysEqual(layout.getBlock(8).toArray(),[12,8]));
+    console.assert(utils.arraysEqual(layout.getBlock(3).toArray(),[3,7,11]));
+    console.assert(utils.arraysEqual(layout.getBlock(8).toArray(),[8, 12]));
     console.assert(utils.arraysEqual(layout.getBlock(13).toArray(),[13]));
 
     console.log("layout_test.ts: Finished [nuclear constraints]");
-    model.reset();
 }
