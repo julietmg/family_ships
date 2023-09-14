@@ -18,6 +18,12 @@ export class Deque<T> {
             this.pushRight(initialValue);
         });
     }
+    left(node : Node<T>): Node<T> {
+        return node.left;
+    }
+    right(node: Node<T>): Node<T> {
+        return node.right;
+    }
     pushLeft(value: T) {
         if (this.front == undefined) { 
             this.front = { value };

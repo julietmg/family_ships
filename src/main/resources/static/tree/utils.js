@@ -9,4 +9,15 @@ export function arraysEqual(a, b) {
     }
     return true;
 }
+export function arraysDeepEqual(a, b) {
+    if (a.length != b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i += 1) {
+        if (!arraysEqual(a[i], b[i])) {
+            return false;
+        }
+    }
+    return true;
+}
 //# sourceMappingURL=utils.js.map

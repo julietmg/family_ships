@@ -160,14 +160,14 @@ if (config.test) {
     console.log("sccs:");
     console.log(sccs);
     console.log("constraints:");
-    console.log(layout.getBlock(1).toArray());
-    console.log(layout.getBlock(3).toArray());
-    console.log(layout.getBlock(8).toArray());
-    console.log(layout.getBlock(13).toArray());
-    console.assert(utils.arraysEqual(layout.getBlock(1).toArray(), [1, 2, 5, 6]));
-    console.assert(utils.arraysEqual(layout.getBlock(3).toArray(), [3, 7, 11]));
-    console.assert(utils.arraysEqual(layout.getBlock(8).toArray(), [8, 12]));
-    console.assert(utils.arraysEqual(layout.getBlock(13).toArray(), [13]));
+    console.log(layout.blockToSlicedArray(1));
+    console.log(layout.blockToSlicedArray(3));
+    console.log(layout.blockToSlicedArray(8));
+    console.log(layout.blockToSlicedArray(13));
+    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(1), [[1, 2], [5, 6]]));
+    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(3), [[3], [7], [11]]));
+    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(8), [[8], [12]]));
+    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(13), [[13]]));
     console.log("layout_test.ts: Finished [nuclear constraints]");
 }
 //# sourceMappingURL=layout_test.js.map

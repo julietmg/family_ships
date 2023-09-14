@@ -3,7 +3,7 @@ import * as config from "./config.js";
 import * as model from "./model.js";
 import * as reachability from "./reachability.js";
 import * as scc from "./scc.js";
-import * as reversible_deque from "./reversible_deque.js";
+import { Deque, Node } from "./deque.js";
 
 type Position = {
     x: number
@@ -152,11 +152,11 @@ export function recalculateLayerAssignment() {
 
 // -------------------------- Calculating new constraints between people and grouping the layers with them --------------------------
 
-export type Block = reversible_deque.ReversibleDeque<model.PersonId>;
+export type Block = Deque<model.PersonId>;
 export let personsBlock: Record<model.PersonId,
     { kind: "root", block: Block } |
     { kind: "merged", with: model.PersonId }> = {};
-export let personsNode: Record<model.PersonId, reversible_deque.Node<model.PersonId>> = {};
+export let personsNode: Record<model.PersonId, Node<model.PersonId>> = {};
 
 export function getBlockId(personId: model.PersonId): model.PersonId {
     let block = personsBlock[personId];
@@ -181,62 +181,110 @@ function mergeBlocks(firstPersonId: model.PersonId, secondPersonId: model.Person
     personsBlock[secondBlockId] = { kind: "merged", with: firstBlockId };
 }
 
-// Note that the parentsSlice slice doesn't necessarily contain all the family's parents
-export type FamilyConstraints = {
-    parentsSlice?: { left: model.PersonId, right: model.PersonId }
-    leftChild?: model.PersonId
-    rightChild?: model.PersonId
+export type Slice = {
+    left: model.PersonId, right: model.PersonId
 }
-export let familyConstraints: Record<model.FamilyId, FamilyConstraints> = {};
+export let personsSlice: Record<model.PersonId,
+    { kind: "root", slice: Slice } |
+    { kind: "merged", with: model.PersonId }> = {};
+
+export function sliceToArray(personId : model.PersonId) : Array<model.PersonId> {
+    let result : Array<model.PersonId> = [];
+    const slice = getSlice(personId);
+    let current = personsNode[slice.left];
+    while(current != personsNode[slice.right].right) {
+        result.push(current.value);
+        current = current.right;
+    }
+    return result;
+}
+
+export function blockToSlicedArray(personId : model.PersonId) : Array<Array<model.PersonId>> {
+    let result = [];
+    let last = sliceToArray(personId);
+    result.push(last);
+    while(last.slice(-1)[0] != getBlock(personId).peekRight()) {
+        last = sliceToArray(getBlock(personId).right(personsNode[last.slice(-1)[0]]).value);
+        result.push(last);
+    }
+    return result;
+}
+
+export function getSliceId(personId: model.PersonId): model.PersonId {
+    let block = personsSlice[personId];
+    if (block.kind == "root") {
+        return personId;
+    }
+    // Compress paths as we go.
+    let result = getSliceId(block.with);
+    block.with = result;
+    return result;
+}
+
+export function getSlice(personId: model.PersonId): Slice {
+    return (personsSlice[getSliceId(personId)] as { kind: "root", slice: Slice }).slice;
+}
+
+function mergeSlices(firstPersonId: model.PersonId, secondPersonId: model.PersonId) {
+    let firstSliceId = getSliceId(firstPersonId);
+    let secondSliceId = getSliceId(secondPersonId);
+    (personsSlice[firstSliceId] as { kind: "root", slice: Slice }).slice.right =
+        ((personsSlice[secondSliceId] as { kind: "root", slice: Slice }).slice.right);
+    personsSlice[secondSliceId] = { kind: "merged", with: firstSliceId };
+}
+
+// Note that this is not necessarily defined for all families.
+// Just for those for which the parents are in one slice.
+export let familySlice: Record<model.FamilyId, Slice> = {};
 
 export type PersonsConstraints = {
-    // This is null if the person does not belong to any family.
-    parents?: model.FamilyId
-    beginOfConsecutiveFamilies: Array<model.FamilyId>
-    endOfConsecutiveFamilies: Array<model.FamilyId>
-    hookedFamilies: Array<model.FamilyId>
+    // This is null if the person does not belong tos any family.
+    assignedFamily?: model.FamilyId
+    beginsFamilySlices: Array<model.FamilyId>
+    endsFamilySlices: Array<model.FamilyId>
 }
-export let personsConstraints: Record<model.PersonId, PersonsConstraints> = {};
 
+export let personsConstraints: Record<model.PersonId, PersonsConstraints> = {};
 export let familyAssignedChildren: Record<model.FamilyId, Array<model.PersonId>> = {};
 
 // This recursively reverses all the blocks this block depends on.
 // TODO: Fix this! This should also reverse the child dependencies.
-export function reverseBlock(personId: model.PersonId) {
-    getBlock(personId).reverse();
-    let constraints = personsConstraints[personId];
-    if (constraints.parents != undefined) {
-        let family = familyConstraints[constraints.parents];
-        let tmpChild = family.leftChild;
-        family.leftChild = family.rightChild;
-        family.rightChild = tmpChild;
-        let parentsSlice = familyConstraints[constraints.parents];
-        // TODO: Different 
-        if (parentsSlice.parentsSlice != null) {
-            let tmpParent = parentsSlice.parentsSlice.left;
-            parentsSlice.parentsSlice.left = parentsSlice.parentsSlice.right;
-            parentsSlice.parentsSlice.right = tmpParent;
-            reverseBlock(parentsSlice.parentsSlice.left);
-        }
-    }
-}
+// export function reverseBlock(personId: model.PersonId) {
+//     getBlock(personId).reverse();
+
+//     let constraints = personsConstraints[personId];
+//     if (constraints.parents != undefined) {
+//         let family = familyConstraints[constraints.parents];
+//         let tmpChild = family.leftChild;
+//         family.leftChild = family.rightChild;
+//         family.rightChild = tmpChild;
+//         let parentsSlice = familyConstraints[constraints.parents];
+//         // TODO: Different 
+//         if (parentsSlice.parentsSlice != null) {
+//             let tmpParent = parentsSlice.parentsSlice.left;
+//             parentsSlice.parentsSlice.left = parentsSlice.parentsSlice.right;
+//             parentsSlice.parentsSlice.right = tmpParent;
+//             reverseBlock(parentsSlice.parentsSlice.left);
+//         }
+//     }
+// }
 
 export function recalculateConstraints() {
-    familyConstraints = {};
+    familySlice = {};
     personsConstraints = {};
     familyAssignedChildren = {};
     personsBlock = {};
     personsNode = {};
 
     for (const personId in model.people) {
-        let peopleInBlock: reversible_deque.ReversibleDeque<model.PersonId> = new reversible_deque.ReversibleDeque();
+        let peopleInBlock: Deque<model.PersonId> = new Deque();
         let node = peopleInBlock.pushLeft(+personId);
         personsBlock[+personId] = { kind: "root", block: peopleInBlock };
+        personsSlice[+personId] = { kind: "root", slice: { left: +personId, right: +personId } };
         personsNode[+personId] = node;
         personsConstraints[+personId] = {
-            beginOfConsecutiveFamilies: [],
-            endOfConsecutiveFamilies: [],
-            hookedFamilies: []
+            beginsFamilySlices: [],
+            endsFamilySlices: []
         };
     }
 
@@ -259,7 +307,7 @@ export function recalculateConstraints() {
         return encounters == peopleIds.size;
     }
 
-    function calculateSliceAmongstNeighbouringSet(peopleIds: Set<model.PersonId>): { left: model.PersonId, right: model.PersonId } {
+    function calculateSliceAmongstNeighbouringSet(peopleIds: Set<model.PersonId>): Slice {
         let anyPerson = peopleIds.values().next().value;
         let currentNode = personsNode[anyPerson];
         let block = getBlock(anyPerson);
@@ -281,13 +329,12 @@ export function recalculateConstraints() {
         return { left: left.value, right: right.value };
     }
 
-    function findFamilySlice(familyId: model.FamilyId): FamilyConstraints {
+    function findFamilySlice(familyId: model.FamilyId): Slice {
         const parentIds = new Set(model.familyParents(familyId));
         if (areNeighbours(parentIds)) {
-            let parentSlice = calculateSliceAmongstNeighbouringSet(parentIds);
-            return { parentsSlice: { left: parentSlice.left, right: parentSlice.right } };
+            return calculateSliceAmongstNeighbouringSet(parentIds);
         }
-        return {};
+        return undefined;
     }
 
     // This attempts to find a set of parents that this child can be added as a dependency too.
@@ -299,11 +346,11 @@ export function recalculateConstraints() {
             if (parentIds.length == 0) {
                 return false;
             }
-            let familyParents = familyConstraints[familyId].parentsSlice;
-            if (familyParents == undefined) {
+            let slice = familySlice[familyId];
+            if (slice == undefined) {
                 return true;
             }
-            const familyLayer = personsLayer[familyParents.left];
+            const familyLayer = personsLayer[slice.left];
             return familyLayer < personsLayer[personId];
         });
         if (personsFamilies.length == 0) {
@@ -322,7 +369,7 @@ export function recalculateConstraints() {
 
         // We first look for families, whose parents are neighbours and there are at least two parents.
         let neighbouringFamilies = personsFamilies.filter((familyId) => {
-            return familyConstraints[familyId].parentsSlice != undefined;
+            return familySlice[familyId] != undefined;
         }
         );
         if (neighbouringFamilies.length > 0) {
@@ -333,7 +380,7 @@ export function recalculateConstraints() {
 
     // Will attempt to add a constraint between two people, so that they are kept together in a layout.
     // Return `false` and doesn't modify anything if this constraint cannot be added.
-    function attemptConstraint(firstPersonId: model.PersonId, secondPersonId: model.PersonId): boolean {
+    function attemptConstraint(firstPersonId: model.PersonId, secondPersonId: model.PersonId, onlyBlock?: "only-block"): boolean {
         if (firstPersonId == secondPersonId) {
             return true;
         }
@@ -347,11 +394,11 @@ export function recalculateConstraints() {
         let firstBlock = getBlock(firstPersonId);
         let secondBlock = getBlock(secondPersonId);
 
-
+        // We need to add the constraint. If it's already there, we fail.
+        // This is to make sure that when children ask parents to be merged.
+        // The merge actually happens. This way we know we have only one child
+        // that is the candidate to be the person living on that edge.
         if (getBlockId(firstPersonId) == getBlockId(secondPersonId)) {
-            if (firstBlock.right(personsNode[firstPersonId]) != undefined && firstBlock.right(personsNode[firstPersonId]).value == secondPersonId) {
-                return true;
-            }
             console.log("same block, but not correct");
             return false;
         }
@@ -363,97 +410,79 @@ export function recalculateConstraints() {
 
         if (secondBlock.peekLeft() != secondPersonId) {
             console.log("snd not edge");
-
             return false;
         }
 
         let firstConstraints = personsConstraints[firstPersonId];
         let secondConstraints = personsConstraints[secondPersonId];
 
-        if (firstConstraints.parents != undefined && secondConstraints.parents != undefined) {
-            let firstFamilyConstraint = familyConstraints[firstConstraints.parents];
-            let secondFamilyConstraint = familyConstraints[secondConstraints.parents];
+        if (firstConstraints.assignedFamily != undefined && secondConstraints.assignedFamily != undefined) {
+            let firstFamilySlice = familySlice[firstConstraints.assignedFamily];
+            let secondFamilySlice = familySlice[secondConstraints.assignedFamily];
 
-            if (firstFamilyConstraint.rightChild != undefined) {
-                console.log("right child sad");
-                return false;
-            }
-
-            if (secondFamilyConstraint.leftChild != undefined) {
-                console.log("left child sad");
-                return false;
-            }
-
-            if (firstFamilyConstraint.parentsSlice == null) {
+            if (firstFamilySlice == undefined) {
                 console.log("left no parents slice");
                 return false;
             }
 
-            if (secondFamilyConstraint.parentsSlice == null) {
+            if (secondFamilySlice == undefined) {
                 console.log("right no parents slice");
                 return false;
             }
+            
+            // TODO: Verify there is no smaller slice with children.
 
             console.log(firstPersonId)
-            console.log(firstFamilyConstraint.parentsSlice);
+            console.log(firstFamilySlice);
 
             console.log(secondPersonId)
-            console.log(secondFamilyConstraint.parentsSlice);
+            console.log(secondFamilySlice);
 
-            if (!attemptConstraint(firstFamilyConstraint.parentsSlice.right, secondFamilyConstraint.parentsSlice.left)) {
+            if (!attemptConstraint(firstFamilySlice.right, secondFamilySlice.left, "only-block")) {
                 console.log("parents sad");
                 return false;
             }
+            // We need to mangle the begins and ends to ensure the slices are correctly ordered.
+            personsConstraints[firstFamilySlice.right].endsFamilySlices =
+                personsConstraints[firstFamilySlice.right].endsFamilySlices.
+                    filter((a) => a != firstConstraints.assignedFamily)
+                    .concat([firstConstraints.assignedFamily]);
+            personsConstraints[secondFamilySlice.left].beginsFamilySlices =
+                [secondConstraints.assignedFamily]
+                    .concat(personsConstraints[secondFamilySlice.left].beginsFamilySlices
+                        .filter((a) => a != secondConstraints.assignedFamily));
+
             mergeBlocks(firstPersonId, secondPersonId);
-            firstFamilyConstraint.rightChild = firstPersonId;
-            secondFamilyConstraint.leftChild = secondPersonId;
-            return true;
-        }
-        // TODO: Different approach here.
-        if (firstConstraints.parents != undefined) {
-            let firstFamilyConstraint = familyConstraints[firstConstraints.parents];
-            if (firstFamilyConstraint.rightChild != undefined) {
-                console.log("right child sad in single");
-                return false;
-            }
-            mergeBlocks(firstPersonId, secondPersonId);
-            firstFamilyConstraint.rightChild = firstPersonId;
-            return true;
-        }
-        if (secondConstraints.parents != undefined) {
-            let secondFamilyConstraint = familyConstraints[secondConstraints.parents];
-            if (secondFamilyConstraint.leftChild != undefined) {
-                console.log("left child sad in single");
-                return false;
-            }
-            mergeBlocks(firstPersonId, secondPersonId);
-            secondFamilyConstraint.leftChild = secondPersonId;
+            // We cannot merge slices in this case.
             return true;
         }
         mergeBlocks(firstPersonId, secondPersonId);
+        if (onlyBlock == undefined) {
+            mergeSlices(firstPersonId, secondPersonId);
+        }
         return true;
     }
 
     for (const layer of layers) {
         for (const personId of layer) {
             for (const familyId of model.childOfFamilies(personId)) {
-                if (familyConstraints[familyId] != undefined) {
+                if (familySlice[familyId] != undefined) {
                     continue;
                 }
-                familyConstraints[familyId] = findFamilySlice(familyId);
+                familySlice[familyId] = findFamilySlice(familyId);
                 familyAssignedChildren[familyId] = [];
 
-                let constraints = familyConstraints[familyId];
-                if (constraints.parentsSlice != null) {
-                    personsConstraints[constraints.parentsSlice.left].beginOfConsecutiveFamilies.push(familyId);
-                    personsConstraints[constraints.parentsSlice.right].endOfConsecutiveFamilies.push(familyId);
+                let slice = familySlice[familyId];
+                if (slice != null) {
+                    personsConstraints[slice.left].beginsFamilySlices.push(familyId);
+                    personsConstraints[slice.right].endsFamilySlices.push(familyId);
                 }
             }
         }
         for (const personId of layer) {
             let bestFamilyForPerson = findBestFamilyForPerson(personId);
             if (bestFamilyForPerson != undefined) {
-                personsConstraints[personId].parents = bestFamilyForPerson;
+                personsConstraints[personId].assignedFamily = bestFamilyForPerson;
                 familyAssignedChildren[bestFamilyForPerson].push(personId);
             }
         }
@@ -484,13 +513,13 @@ export function recalculateConstraints() {
                 if (model.familyChildren(familyId).length != 0) {
                     continue;
                 }
-                familyConstraints[familyId] = findFamilySlice(familyId);
+                familySlice[familyId] = findFamilySlice(familyId);
                 familyAssignedChildren[familyId] = [];
 
-                let constraints = familyConstraints[familyId];
-                if (constraints.parentsSlice != null) {
-                    personsConstraints[constraints.parentsSlice.left].beginOfConsecutiveFamilies.push(familyId);
-                    personsConstraints[constraints.parentsSlice.right].endOfConsecutiveFamilies.push(familyId);
+                let slice = familySlice[familyId];
+                if (slice != null) {
+                    personsConstraints[slice.left].beginsFamilySlices.push(familyId);
+                    personsConstraints[slice.right].endsFamilySlices.push(familyId);
                 }
             }
         }
@@ -578,21 +607,9 @@ export function recalculate() {
 
     function pushFamilyMembersIntoLayout(familyId: model.FamilyId): Set<LayoutPosition> {
         let pushed: Set<LayoutPosition> = new Set();
-        let familyConstraint = familyConstraints[familyId];
-        if (familyConstraint.leftChild != undefined) {
-            pushBlockIntoLayout(familyConstraint.leftChild);
-            pushed.add(personsLayoutPosition[familyConstraint.leftChild]);
-        }
         for (const childId of familyAssignedChildren[familyId]) {
-            if (childId == familyConstraint.rightChild) {
-                continue;
-            }
             pushBlockIntoLayout(childId);
             pushed.add(personsLayoutPosition[childId]);
-        }
-        if (familyConstraint.rightChild != undefined) {
-            pushBlockIntoLayout(familyConstraint.rightChild);
-            pushed.add(personsLayoutPosition[familyConstraint.rightChild]);
         }
         return pushed;
     }
@@ -623,14 +640,14 @@ export function recalculate() {
             let partnerFamiliesEndedByCurrent: Array<FamilyLayoutInformation> = [];
             let multiParentFamiliesEndedByCurrent: Array<{ family: FamilyLayoutInformation, depth: number }> = [];
 
-            for (const familyId of constraints.beginOfConsecutiveFamilies) {
+            for (const familyId of constraints.beginsFamilySlices) {
                 if (model.familyParents(familyId).length > 2) {
                     openMultiParentFamiliesDepths[familyId] = depth;
                     depth += 1;
                 }
             }
 
-            for (const familyId of constraints.endOfConsecutiveFamilies) {
+            for (const familyId of constraints.endsFamilySlices) {
                 let familyNode = { familyId: familyId, members: pushFamilyMembersIntoLayout(familyId) };
                 if (model.familyParents(familyId).length == 1) {
                     singleParentFamiliesOfCurrent.push(familyNode);
@@ -668,7 +685,7 @@ export function recalculate() {
         }
 
         let lastPerson = lastPersonInLayout(personsLayer[begin]);
-        
+
         for (const familyId of finishedUnhookedFamilies) {
             const nodeLayoutPosition: LayoutPosition = { layer: personsLayer[begin], position: layout[personsLayer[begin]].length };
             const parents = model.familyParents(familyId);
@@ -710,10 +727,10 @@ export function recalculate() {
         while (currentNode != block.right(endNode)) {
             let currentId = currentNode.value;
             let constraints = personsConstraints[currentId];
-            for (const familyId of constraints.beginOfConsecutiveFamilies) {
+            for (const familyId of constraints.beginsFamilySlices) {
                 openFamilies.add(familyId);
             }
-            for (const familyId of constraints.endOfConsecutiveFamilies) {
+            for (const familyId of constraints.endsFamilySlices) {
                 openFamilies.delete(familyId);
             }
             if (openFamilies.size == 0) {
@@ -725,7 +742,7 @@ export function recalculate() {
     }
 
     function pushBlockIntoLayout(representativePersonId: model.PersonId) {
-        if(personsLayoutPosition[representativePersonId] != undefined) {
+        if (personsLayoutPosition[representativePersonId] != undefined) {
             return;
         }
         let block = getBlock(representativePersonId);
@@ -758,18 +775,18 @@ export function recalculate() {
     const depthModifier = 20.0;
     const overlayOffset = 10.0;
 
-    function calculatePositionForPerson(personId : model.PersonId, boxStart : number) : number {
+    function calculatePositionForPerson(personId: model.PersonId, boxStart: number): number {
         console.log("calculatePositionForPerson " + personId + " " + boxStart);
         boxStart = Math.max(boxStart, layerBox[personsLayer[personId]]);
-        personsPosition[personId] = {x:boxStart, y:spaceBetweenLayers * personsLayer[personId]};
+        personsPosition[personId] = { x: boxStart, y: spaceBetweenLayers * personsLayer[personId] };
         layerBox[personsLayer[personId]] = boxStart + spaceBetweenPeople;
         return boxStart + spaceBetweenPeople;
     }
 
-    function calculatePositionForFamily(family : FamilyLayoutInformation, boxStart : number) : number {
+    function calculatePositionForFamily(family: FamilyLayoutInformation, boxStart: number): number {
         console.log("calculatePositionForFamily " + family.familyId + " " + boxStart);
         let boxEnd = boxStart;
-        for(const node of family.members) {
+        for (const node of family.members) {
             boxEnd = calculateLayoutNode(node, boxEnd);
         }
         return boxEnd;
@@ -780,23 +797,23 @@ export function recalculate() {
         if (node.kind == "people") {
             let layer = personsLayer[node.partners[0]];
             let boxEnd = boxStart;
-            for(const personId of node.partners) {
-                for(const family of node.singleParentFamilies[personId]) {
+            for (const personId of node.partners) {
+                for (const family of node.singleParentFamilies[personId]) {
                     let familyBoxStart = boxEnd;
                     boxEnd = calculatePositionForFamily(family, boxEnd);
                     let familyBoxEnd = boxEnd;
                     familyPosition[family.familyId] = {
-                        x: (familyBoxStart + familyBoxEnd) /2,
+                        x: (familyBoxStart + familyBoxEnd) / 2,
                         y: layer * spaceBetweenLayers
                     };
                 }
-                for(const familyWithDepth of node.multiParentFamilies[personId]) {
+                for (const familyWithDepth of node.multiParentFamilies[personId]) {
                     let familyBoxStart = boxEnd;
                     boxEnd = calculatePositionForFamily(familyWithDepth.family, boxEnd);
                     let familyBoxEnd = boxEnd;
                     let familyDepth = 0;
-                    if(familyWithDepth.depth != undefined && 
-                       familyWithDepth.depth > 0) {
+                    if (familyWithDepth.depth != undefined &&
+                        familyWithDepth.depth > 0) {
                         familyDepth = depthFamilyBase + familyWithDepth.depth * depthModifier;
                     }
                     familyPosition[familyWithDepth.family.familyId] = {
@@ -804,28 +821,30 @@ export function recalculate() {
                         y: layer * spaceBetweenLayers + familyDepth
                     };
                 }
-                for(const family of node.partnerFamilies[personId]) {
+                for (const family of node.partnerFamilies[personId]) {
                     boxEnd = calculatePositionForFamily(family, boxEnd);
                     // Family positions for partner families will be calculated after the parents are laid out
                 }
             }
-            let partnersBoxStart = (boxEnd + boxStart) / 2 - spaceBetweenPeople*node.partners.length/2;
+            let partnersBoxStart = (boxEnd + boxStart) / 2 - spaceBetweenPeople * node.partners.length / 2;
             partnersBoxStart = Math.max(partnersBoxStart, boxStart);
             let partnersBoxEnd = partnersBoxStart;
             console.log("PARTNERS BOX START: " + partnersBoxStart);
 
-            for(const personId of node.partners) {
+            for (const personId of node.partners) {
                 partnersBoxEnd = calculatePositionForPerson(personId, partnersBoxEnd);
             }
 
-            for(let i = 1; i < node.partners.length; i += 1) {
-                let left = node.partners[i-1];
+            for (let i = 1; i < node.partners.length; i += 1) {
+                let left = node.partners[i - 1];
                 let right = node.partners[i];
-                let position = {x:(personsPosition[left].x + personsPosition[right].x)/2, y:
-                layer * spaceBetweenLayers};
+                let position = {
+                    x: (personsPosition[left].x + personsPosition[right].x) / 2, y:
+                        layer * spaceBetweenLayers
+                };
                 let offset = 0;
-                for(const family of node.partnerFamilies[right]) {
-                    familyPosition[family.familyId] = {x: position.x + offset, y:position.y + offset};
+                for (const family of node.partnerFamilies[right]) {
+                    familyPosition[family.familyId] = { x: position.x + offset, y: position.y + offset };
                     offset += overlayOffset;
                 }
             }
@@ -837,7 +856,7 @@ export function recalculate() {
             boxEnd = calculatePositionForFamily(node.family, boxEnd);
             boxEnd = Math.max(boxStart + spaceBetweenPeople, boxEnd);
             let familyDepth = 0;
-            if(node.depth != undefined && 
+            if (node.depth != undefined &&
                 node.depth > 0) {
                 familyDepth = depthFamilyBase + node.depth * depthModifier;
             }
@@ -850,12 +869,12 @@ export function recalculate() {
         }
     }
 
-    function positionString(position : LayoutPosition) : string {
+    function positionString(position: LayoutPosition): string {
         return position.layer + " " + position.position;
     }
 
-    let calculatedLayoutNodes : Set<string> = new Set();
-    function calculateLayoutNode(position : LayoutPosition, boxStart : number) : number {
+    let calculatedLayoutNodes: Set<string> = new Set();
+    function calculateLayoutNode(position: LayoutPosition, boxStart: number): number {
         console.log("Calculating for " + position.layer + " " + position.position + " " + boxStart);
         calculatedLayoutNodes.add(positionString(position));
         return calculatePosition(layout[position.layer][position.position], boxStart);
@@ -863,10 +882,10 @@ export function recalculate() {
 
     for (let i = 0; i < layout.length; i += 1) {
         const layoutLayer = layout[i];
-        for(let j = 0; j < layoutLayer.length; j += 1) {
+        for (let j = 0; j < layoutLayer.length; j += 1) {
             let boxEnd = layerBox[i];
-            let position = {layer:i,position:j};
-            if(calculatedLayoutNodes.has(positionString(position))) {
+            let position = { layer: i, position: j };
+            if (calculatedLayoutNodes.has(positionString(position))) {
                 continue;
             }
             calculateLayoutNode(position, boxEnd);

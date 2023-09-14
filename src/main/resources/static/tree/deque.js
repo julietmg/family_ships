@@ -10,6 +10,12 @@ export class Deque {
             this.pushRight(initialValue);
         });
     }
+    left(node) {
+        return node.left;
+    }
+    right(node) {
+        return node.right;
+    }
     pushLeft(value) {
         if (this.front == undefined) {
             this.front = { value };
