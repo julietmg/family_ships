@@ -3,5 +3,5 @@
 export const test : boolean = true;
 
 // When this is true, certain log lines will appear on the console.
-export const debug : boolean = false;
+export const debug : boolean = true;
 
