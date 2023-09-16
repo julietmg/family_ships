@@ -173,16 +173,16 @@ if (config.test) {
     console.log(sccs);
 
     console.log("constraints:");
-    console.log(layout.blockToSlicedArray(1));
-    console.log(layout.blockToSlicedArray(3));
-    console.log(layout.blockToSlicedArray(8));
-    console.log(layout.blockToSlicedArray(13));
+    console.log(utils.deepArrayToString(layout.layerConstraintsToArray(0)));
+    console.log(utils.deepArrayToString(layout.layerConstraintsToArray(1)));
+    console.log(utils.deepArrayToString(layout.layerConstraintsToArray(2)));
+    console.log(utils.deepArrayToString(layout.layerConstraintsToArray(3)));
 
 
-    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(1), [[1, 2], [5, 6]]));
-    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(3), [[3], [7, 11]]));
-    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(8), [[8], [12]]));
-    console.assert(utils.arraysDeepEqual(layout.blockToSlicedArray(13), [[13]]));
+    console.assert(utils.arraysDeepEqual(layout.layerConstraintsToArray(0), [[[1, 2], [5, 6]], [[9]], [[10]]]));
+    console.assert(utils.arraysDeepEqual(layout.layerConstraintsToArray(1), [[[3],[7,11]],[[4]]]));
+    console.assert(utils.arraysDeepEqual(layout.layerConstraintsToArray(2), [[[8],[12]]]));
+    console.assert(utils.arraysDeepEqual(layout.layerConstraintsToArray(3), [[[13]],[[14]]]));
 
     console.log("layout_test.ts: Finished [nuclear constraints]");
 }

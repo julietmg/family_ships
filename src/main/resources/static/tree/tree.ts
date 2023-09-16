@@ -302,15 +302,16 @@ export function updateGraphics() {
         }
         if (familyPos.y < parentPos.y) {
             return [[familyPos.x - sign * familyBoxSize.width / 2, familyPos.y],
-            [parentPos.x + sign * personBoxSize.width / 2, familyPos.y],
+            [parentPos.x + sign * (personBoxSize.width / 2 + 20), familyPos.y],
+            [parentPos.x + sign * (personBoxSize.width / 2 + 20), parentPos.y],
             [parentPos.x + sign * personBoxSize.width / 2, parentPos.y]];
-
         }
         return [[familyPos.x - sign * familyBoxSize.width / 2, familyPos.y],
         [parentPos.x, familyPos.y],
         [parentPos.x, parentPos.y + personBoxSize.height / 2]];
     }
 
+    // TODO: Calculate that based on point and path, calculating an offset or something.
     function parentPathDeleteButtonPosition(parentId: number, familyId: number): { x: number, y: number } {
         const source = layout.familyPosition[familyId];
         const target = layout.personsPosition[parentId];
@@ -408,9 +409,9 @@ export function updateGraphics() {
 
     function childPathPoints(childPos: { x: number, y: number }, familyPos: { x: number, y: number }): Array<[number, number]> {
         if (familyPos.y > childPos.y) {
-            return [[familyPos.x, familyPos.y],
-            [familyPos.x, familyPos.y + 20],
-            [childPos.x + personBoxSize.width, familyPos.y + 20],
+            return [[familyPos.x, + familyBoxSize.height / 2],
+            [familyPos.x, + familyBoxSize.height / 2 + 20],
+            [childPos.x + personBoxSize.width, + familyBoxSize.height / 2 + 20],
             [childPos.x + personBoxSize.width, childPos.y - personBoxSize.height / 2 - 40],
             [childPos.x, childPos.y - personBoxSize.height / 2 - 40],
             [childPos.x, childPos.y - personBoxSize.height / 2]];
