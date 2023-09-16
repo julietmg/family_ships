@@ -61,8 +61,8 @@ if (config.test) {
     console.assert(utils.arraysEqual(b.toArray(), []));
     a.reverse();
     // This output might be useful when debugging this test.
-    console.log(a);
-    console.log(a.toArray());
+    // console.log(a);
+    // console.log(a.toArray());
     console.assert(utils.arraysEqual(a.toArray(), [1, 2, 3, 4, 5, 6, 7, 8]));
     console.log("reversible_deque_test.ts: Finished [merge_front]");
 }
@@ -88,8 +88,8 @@ if (config.test) {
     // console.log(a.toArray());
     // console.log(locationA);
     // console.log(locationB);
-    // console.assert(a.left(locationA).value == 7);
-    // console.assert(locationB.value == 7);
+    console.assert(a.left(locationA).value == 7);
+    console.assert(locationB.value == 7);
     console.log("reversible_deque_test.ts: Finished [node_location]");
 }
 //# sourceMappingURL=reversible_deque_test.js.map

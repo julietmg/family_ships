@@ -539,6 +539,12 @@ export function recalculateConstraints() {
             let bestFamilyForPerson = findBestFamilyForPerson(personId);
             if (bestFamilyForPerson != undefined) {
                 personsConstraints[personId].assignedFamily = bestFamilyForPerson;
+                // We need to sort the begins and ends, so that we don't cross lines
+                // while drawing children
+                personsConstraints[personId].beginsFamilySlices.sort((a, b) =>
+                    model.familyParents(a).length - model.familyParents(b).length);
+                personsConstraints[personId].endsFamilySlices.sort((a, b) =>
+                    model.familyParents(b).length - model.familyParents(a).length);
                 familyAssignedChildren[bestFamilyForPerson].push(personId);
             }
         }
@@ -808,7 +814,7 @@ export function recalculateLayout() {
         }
     }
 
-    if(config.debug) {
+    if (config.debug) {
         console.log("Final layout:");
         console.log(layout);
     }
@@ -876,7 +882,7 @@ export function recalculatePositions() {
                 for (const familyNode of node.families[personId]) {
                     if (realBoxStart != null) {
                         // We don't want the children to be too far away from parents
-                        boxEnd = Math.max(boxEnd, realBoxStart + (+personIndex - model.familyParents(familyNode.family.familyId).length) * spaceBetweenPeople);
+                        boxEnd = Math.max(boxEnd, realBoxStart + (+personIndex - model.familyParents(familyNode.family.familyId).length + 1) * spaceBetweenPeople);
                     }
                     const familyBox = calculatePositionForFamilyMembers(familyNode.family.members, boxEnd);
                     if (realBoxStart == null) { realBoxStart = familyBox[0]; }
@@ -917,7 +923,7 @@ export function recalculatePositions() {
                     if (!family.partner) {
                         continue;
                     }
-                    familyPosition[family.family.familyId] = { x: position.x + offset, y: position.y + offset };
+                    familyPosition[family.family.familyId] = { x: position.x + offset, y: position.y };
                     offset += overlayOffset;
                 }
             }
@@ -1008,7 +1014,7 @@ export function recalculatePositions() {
         }
     }
 
-    if(config.debug) {
+    if (config.debug) {
         console.log("Persons positions:");
         console.log(personsPosition);
 

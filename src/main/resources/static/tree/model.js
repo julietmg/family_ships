@@ -19,12 +19,12 @@ export async function reload() {
             people[person.id] = person;
         }
     }
-    // if(config.debug) {
-    console.log("Reloaded families:");
-    console.log(families);
-    console.log("Reloaded people:");
-    console.log(people);
-    // }
+    if (config.debug) {
+        console.log("Reloaded families:");
+        console.log(families);
+        console.log("Reloaded people:");
+        console.log(people);
+    }
 }
 // Note that this must be followed by a call to `reload()` in production and call to `recalculate()` in test mode.
 export async function newPerson(spaceSeparatedNames) {
