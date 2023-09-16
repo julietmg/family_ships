@@ -375,8 +375,9 @@ export function recalculateConstraints() {
     }
 
     function findFamilySlice(familyId: model.FamilyId): Slice {
+        console.log("findFamilySlice " + familyId + " " + utils.deepArrayToString(model.familyParents(familyId)));
         const parentIds = new Set(model.familyParents(familyId));
-        if (areInTheSameSlice(parentIds) && areNeighbours(parentIds)) {
+        if (areNeighbours(parentIds)) {
             return calculateSliceAmongstNeighbouringSet(parentIds);
         }
         return undefined;
@@ -466,7 +467,7 @@ export function recalculateConstraints() {
             let secondFamilySlice = familySlice[secondConstraints.assignedFamily];
 
             if (firstFamilySlice == undefined) {
-                console.log("left no parents slice");
+                console.log("left no parents slice " + firstConstraints.assignedFamily);
                 return false;
             }
 
@@ -556,14 +557,14 @@ export function recalculateConstraints() {
                 // reverseBlock(personId);
             }
             for (const familyId of model.parentOfFamilies(personId)) {
-                if (familySlice[familyId] != undefined) {
+                if (familySlice[+familyId] != undefined) {
                     continue;
                 }
-                familySlice[familyId] = findFamilySlice(familyId);
-                let slice = familySlice[familyId];
+                familySlice[+familyId] = findFamilySlice(+familyId);
+                let slice = familySlice[+familyId];
                 if (slice != null) {
-                    personsConstraints[slice.left].beginsFamilySlices.push(familyId);
-                    personsConstraints[slice.right].endsFamilySlices.push(familyId);
+                    personsConstraints[slice.left].beginsFamilySlices.push(+familyId);
+                    personsConstraints[slice.right].endsFamilySlices.push(+familyId);
                 }
             }
         }
@@ -705,10 +706,17 @@ export function recalculate() {
                 if (model.familyParents(familyId).length > 2) {
                     openMultiParentFamiliesDepths[familyId] = depth;
                     depth += 1;
+                } else {
+                    openMultiParentFamiliesDepths[familyId] = 0;
                 }
             }
 
             for (const familyId of constraints.endsFamilySlices) {
+                // This means that the family is a cross slice family and will be handled
+                // as an unhooked family.
+                if(openMultiParentFamiliesDepths[familyId] == undefined) {
+                    continue;
+                }
                 if (model.familyParents(familyId).length == 1) {
                     singleParentFamiliesOfCurrent.push(familyId);
                 } else if (model.familyParents(familyId).length == 2) {
