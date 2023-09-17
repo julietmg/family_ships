@@ -435,7 +435,6 @@ export function updateGraphics() {
             selectionLink.cursorPosition = { x: event.x, y: event.y };
             updateSelectionGraphics();
         }).on("end", async (event, d) => {
-            console.log(selectionLink.source);
             const source = selectionLink.source;
             selectionLink.source = null;
             let selected = findFunctionalEntityAtPoint(event.x, event.y);

@@ -364,21 +364,6 @@ if (config.test) {
     model.fakeNewFamily(); model.fakeAttachParent(3, 1); model.fakeAttachParent(3, 3);
     model.fakeAttachChild(2, 5);
 
-    // // Parents: 1 3
-    // // Children: 5 6 7
-    // model.fakeNewFamily(); model.fakeAttachParent(4, 1); model.fakeAttachParent(4, 3);
-    // model.fakeAttachChild(4, 5);
-    // // model.fakeAttachChild(4, 6);
-    // // model.fakeAttachChild(4, 7);
-
-    // // Parents: 2 4
-    // // Children: 8 9 10
-    // model.fakeNewFamily(); model.fakeAttachParent(5, 2); model.fakeAttachParent(5, 4);
-    // model.fakeAttachChild(5, 8);
-    // // model.fakeAttachChild(5, 9);
-    // // model.fakeAttachChild(5, 10);
-
-
     layout.recalculateLayerAssignment();
 
     // This output might be useful when debugging this test.
@@ -400,14 +385,14 @@ if (config.test) {
     // console.log(layout.personsConstraints[1]);
     // console.log(layout.personsConstraints[2]);
 
-    console.assert(utils.arraysDeepEqual(layout.layerConstraintsToArray(0), [[[1, 2]]]));
+    console.assert(utils.arraysDeepEqual(layout.layerConstraintsToArray(0), [[[3, 1, 2]]]));
 
     layout.recalculateLayout();
     layout.recalculatePositions();
 
     // This might be useful to copy the output
-    printCopyablePersonsPositions();
-    printCopyableFamilyPositions();
+    // printCopyablePersonsPositions();
+    // printCopyableFamilyPositions();
 
     const expectedPersonsPosition: Record<model.PersonId, { x: number, y: number }> =
     {

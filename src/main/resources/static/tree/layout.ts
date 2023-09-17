@@ -5,6 +5,7 @@ import * as reachability from "./reachability.js";
 import * as scc from "./scc.js";
 import * as utils from "./utils.js";
 import { Deque, Node } from "./deque.js";
+import { tree } from "d3";
 
 type Position = {
     x: number
@@ -275,6 +276,7 @@ export type PersonsConstraints = {
     assignedFamily?: model.FamilyId
     beginsFamilySlices: Array<model.FamilyId>
     endsFamilySlices: Array<model.FamilyId>
+    lockedChild: boolean
 }
 
 export let personsConstraints: Record<model.PersonId, PersonsConstraints> = {};
@@ -298,7 +300,8 @@ export function recalculateConstraints() {
         personsNode[+personId] = node;
         personsConstraints[+personId] = {
             beginsFamilySlices: [],
-            endsFamilySlices: []
+            endsFamilySlices: [],
+            lockedChild: false
         };
     }
 
@@ -308,25 +311,78 @@ export function recalculateConstraints() {
 
     // This recursively reverses all the blocks this block depends on.
     // TODO: Fix this! This should also reverse the child dependencies.
-    // function reverseBlock(personId: model.PersonId) {
-    //     getBlock(personId).reverse();
+    function reverseBlock(blockRepresentantId: model.PersonId) {
+        function collectThingsToReverse(startBlockId : model.PersonId, blocks : Set<model.PersonId>, families : Set<model.FamilyId>) {
+            if(blocks.has(startBlockId)) {
+                return;
+            }
+            blocks.add(startBlockId);
+            for(const sliceId of slicesInBlock(startBlockId)) {
+                const peopleInSlice = sliceToArray(sliceId);
+                for(const personId of peopleInSlice) {
+                    const familyId = personsConstraints[personId].assignedFamily;
+                    if(familyId == undefined) {
+                        continue;
+                    }
+                    const slice = familySlice[familyId];
+                    if(slice == undefined) {
+                        continue;
+                    }
+                    families.add(familyId);
+                    collectThingsToReverse(getBlockId(slice.left), blocks, families);
+                }
+                for(const personId of peopleInSlice) {
+                    for(const familyId of personsConstraints[personId].beginsFamilySlices) {
+                        for(const personId of familyAssignedChildren[familyId]) {
+                            collectThingsToReverse(getBlockId(personId), blocks, families);
+                        }
+                    }
+                    for(const familyId of personsConstraints[personId].endsFamilySlices) {
+                        for(const personId of familyAssignedChildren[familyId]) {
+                            collectThingsToReverse(getBlockId(personId), blocks, families);
+                        }
+                    }
+                }
+            }
+        }
+        console.log("Before reverse of " + blockRepresentantId + ":" );
+        for(const layerId in layers) {
+            console.log(utils.deepArrayToString(layerConstraintsToArray(+layerId)));
+        }
+        let dependentBlocks : Set<model.PersonId> = new Set();
+        let dependentFamilies : Set<model.FamilyId> = new Set();
+        collectThingsToReverse(getBlockId(blockRepresentantId), dependentBlocks, dependentFamilies);
+        console.log("Blocks that will be reversed: ");
+        console.log(dependentBlocks);
+        for(let blockId of dependentBlocks) {
+            for(const sliceId of slicesInBlock(blockId)) {
+                for(const personId of sliceToArray(sliceId)) {
+                    let tmp = personsConstraints[personId].beginsFamilySlices;
+                    personsConstraints[personId].beginsFamilySlices = personsConstraints[personId].endsFamilySlices;
+                    personsConstraints[personId].endsFamilySlices = tmp;
+                }
+                let slice = getSlice(sliceId);
+                const tmp = slice.left;
+                slice.left = slice.right;
+                slice.right = tmp;
+            }
+            getBlock(blockId).reverse();
+        }
+        console.log("Families that will be reversed: ");
+        console.log(dependentFamilies);
+        for(let familyId of dependentFamilies) {
+            const tmp = familySlice[familyId].left;
+            familySlice[familyId].left = familySlice[familyId].right;
+            familySlice[familyId].right = tmp;
+            familyAssignedChildren[familyId].reverse();
+        }
+        console.log("After reverse of " + blockRepresentantId + ":");
+        for(const layerId in layers) {
+            console.log(utils.deepArrayToString(layerConstraintsToArray(+layerId)));
+        }
+    }
 
-    //     let constraints = personsConstraints[personId];
-    //     if (constraints.parents != undefined) {
-    //         let family = familyConstraints[constraints.parents];
-    //         let tmpChild = family.leftChild;
-    //         family.leftChild = family.rightChild;
-    //         family.rightChild = tmpChild;
-    //         let parentsSlice = familyConstraints[constraints.parents];
-    //         // TODO: Different 
-    //         if (parentsSlice.parentsSlice != null) {
-    //             let tmpParent = parentsSlice.parentsSlice.left;
-    //             parentsSlice.parentsSlice.left = parentsSlice.parentsSlice.right;
-    //             parentsSlice.parentsSlice.right = tmpParent;
-    //             reverseBlock(parentsSlice.parentsSlice.left);
-    //         }
-    //     }
-    // }
+
 
     function areNeighbours(peopleIds: Set<model.PersonId>): boolean {
         // Check if they are in the same slice?
@@ -481,29 +537,40 @@ export function recalculateConstraints() {
 
             if (secondFamilySlice == undefined) {
                 if (config.debug) { console.log("Can't constrain [" + firstPersonId + "," + secondPersonId + "]: family " + firstConstraints.assignedFamily + " has no parents slice."); }
-
-                console.log("right no parents slice");
                 return false;
             }
 
             for (const familyId of personsConstraints[firstFamilySlice.right].endsFamilySlices) {
                 if (familyAssignedChildren[familyId].length < familyAssignedChildren[firstConstraints.assignedFamily].length) {
-                    console.log("left would collide with a smaller family on the right");
+                    if (config.debug) { console.log("Can't constrain [" + firstPersonId + "," + secondPersonId + "]: link would collide with other for the person on the left."); }
                     return false;
                 }
             }
 
             for (const familyId of personsConstraints[secondFamilySlice.left].beginsFamilySlices) {
                 if (familyAssignedChildren[familyId].length < familyAssignedChildren[secondConstraints.assignedFamily].length) {
-                    console.log("right would collide with a smaller family on the left");
+                    if (config.debug) { console.log("Can't constrain [" + firstPersonId + "," + secondPersonId + "]: link would collide with other for the person on the right."); }
                     return false;
                 }
             }
 
-            if (!attemptConstraint(firstFamilySlice.right, secondFamilySlice.left, "only-block")) {
-                console.log("parents sad");
+            if (firstConstraints.lockedChild && familyAssignedChildren[firstConstraints.assignedFamily].slice(-1)[0] != firstPersonId) {
+                if (config.debug) { console.log("Can't constrain [" + firstPersonId + "," + secondPersonId + "]: " + firstPersonId + " is already locked in place and can't be moved to the end of its family."); }
                 return false;
             }
+
+            if (secondConstraints.lockedChild && familyAssignedChildren[secondConstraints.assignedFamily][0] != secondPersonId) {
+                if (config.debug) { console.log("Can't constrain [" + firstPersonId + "," + secondPersonId + "]: " + secondPersonId + " is already locked in place and can't be moved to the beginning of its family."); }
+                return false;
+            }
+
+            if (!attemptConstraint(firstFamilySlice.right, secondFamilySlice.left, "only-block")) {
+                if (config.debug) { console.log("Can't constrain [" + firstPersonId + "," + secondPersonId + "]: parents cannot be constrained."); }
+                return false;
+            }
+            firstConstraints.lockedChild = true;
+            secondConstraints.lockedChild = true;
+
             // We need to mangle the begins and ends to ensure the family slices are correctly ordered.
             // And the appropriate family will be drawn first/last
             personsConstraints[firstFamilySlice.right].endsFamilySlices =
@@ -562,15 +629,14 @@ export function recalculateConstraints() {
                     continue;
                 }
 
-                // TODO: Attempt block reversal
-                // reverseBlock(personId);
-                // if (attemptConstraint(personId, partnerId)) {
-                //     continue;
-                // }
-                // if (attemptConstraint(partnerId, personId)) {
-                //     continue;
-                // }
-                // reverseBlock(personId);
+                reverseBlock(personId);
+                if (attemptConstraint(personId, partnerId)) {
+                    continue;
+                }
+                if (attemptConstraint(partnerId, personId)) {
+                    continue;
+                }
+                reverseBlock(personId);
             }
             for (const familyId of model.parentOfFamilies(personId)) {
                 if (familySlice[+familyId] != undefined) {
@@ -586,14 +652,10 @@ export function recalculateConstraints() {
         }
     }
 
-    let printed: Set<model.PersonId> = new Set();
-    for (const layer of layers) {
-        for (const personId of layer) {
-            const root = getBlockId(personId);
-            if (printed.has(root)) {
-                continue;
-            }
-            printed.add(root);
+    if (config.debug) {
+        console.log("Final constraints:")
+        for(const layerId in layers) {
+            console.log(utils.deepArrayToString(layerConstraintsToArray(+layerId)));
         }
     }
 }
@@ -1057,5 +1119,7 @@ export function recalculatePositions() {
         console.log("Families positions:");
         console.log(familyPosition);
     }
+
+
 }
 
