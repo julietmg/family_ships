@@ -140,8 +140,8 @@ if (config.test) {
     layout.recalculateLayout();
     layout.recalculatePositions();
     // This might be useful to copy the output
-    // printCopyablePersonsPositions();
-    // printCopyableFamilyPositions();
+    printCopyablePersonsPositions();
+    printCopyableFamilyPositions();
     const expectedPersonsPosition = {
         1: { x: 0, y: 0 },
         2: { x: 300, y: 0 },
@@ -168,6 +168,12 @@ if (config.test) {
         7: { x: 1200, y: 600 }
     };
     for (const personId in layout.personsPosition) {
+        if (layout.personsPosition[+personId].x != expectedPersonsPosition[+personId].x ||
+            layout.personsPosition[+personId].y != expectedPersonsPosition[+personId].y) {
+            console.log("For person " + personId +
+                " got {x:" + layout.personsPosition[+personId].x + ",y:" + layout.personsPosition[+personId].y +
+                "} but expected {x:" + expectedPersonsPosition[+personId].x + ",y:" + expectedPersonsPosition[+personId].y + "}");
+        }
         console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
             layout.personsPosition[+personId].y == expectedPersonsPosition[+personId].y);
     }
@@ -244,13 +250,19 @@ if (config.test) {
         1: { x: 150, y: 0 },
         2: { x: 300, y: 75 },
         3: { x: 900, y: 75 },
-        4: { x: 600, y: 260 }
+        4: { x: 600, y: 200 }
     };
     for (const personId in layout.personsPosition) {
         console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
             layout.personsPosition[+personId].y == expectedPersonsPosition[+personId].y);
     }
     for (const familyId in layout.familyPosition) {
+        if (layout.familyPosition[+familyId].x != expectedFamilyPosition[+familyId].x ||
+            layout.familyPosition[+familyId].y != expectedFamilyPosition[+familyId].y) {
+            console.log("For family " + familyId +
+                " got {x:" + layout.familyPosition[+familyId].x + ",y:" + layout.familyPosition[+familyId].y +
+                "} but expected {x:" + expectedFamilyPosition[+familyId].x + ",y:" + expectedFamilyPosition[+familyId].y + "}");
+        }
         console.assert(layout.familyPosition[+familyId].x == expectedFamilyPosition[+familyId].x &&
             layout.familyPosition[+familyId].y == expectedFamilyPosition[+familyId].y);
     }
@@ -491,6 +503,124 @@ if (config.test) {
             layout.familyPosition[+familyId].y == expectedFamilyPosition[+familyId].y);
     }
     console.log("layout_test.ts: Finished [children links do not collide]");
+    // model.reset();
+}
+if (config.test) {
+    console.log("layout_test.ts: Starting [loop da loop]");
+    model.reset();
+    for (let i = 1; i <= 2; i += 1) {
+        model.fakeNewPerson("name" + i);
+    }
+    // Parents: 1 
+    // Children: 2
+    model.fakeNewFamily();
+    model.fakeAttachParent(1, 1);
+    model.fakeAttachChild(1, 2);
+    // Parents: 2
+    // Children: 1
+    model.fakeNewFamily();
+    model.fakeAttachParent(2, 2);
+    model.fakeAttachChild(2, 1);
+    layout.recalculateLayerAssignment();
+    // This output might be useful when debugging this test.
+    // console.log("layers:");
+    // console.log(layout.layers);
+    // let sccs: Record<scc.SccId, Array<model.PersonId>> = {};
+    // for (const personId in model.people) {
+    //     if (sccs[scc.personsSccId[personId]] == undefined) {
+    //         sccs[scc.personsSccId[personId]] = [];
+    //     }
+    //     sccs[scc.personsSccId[personId]].push(+personId);
+    // }
+    // console.log("sccs:");
+    // console.log(sccs);
+    layout.recalculateConstraints();
+    // console.log("constraints:");
+    // console.log(utils.deepArrayToString(layout.layerConstraintsToArray(0)));
+    // console.log(layout.personsConstraints[1]);
+    // console.log(layout.personsConstraints[2]);
+    // console.assert(utils.arraysDeepEqual(layout.layers[0], [1,2]));
+    layout.recalculateLayout();
+    layout.recalculatePositions();
+    // This might be useful to copy the output
+    // printCopyablePersonsPositions();
+    // printCopyableFamilyPositions();
+    const expectedPersonsPosition = {
+        1: { x: 300, y: 0 },
+        2: { x: 0, y: 0 }
+    };
+    const expectedFamilyPosition = {
+        1: { x: 300, y: 75 },
+        2: { x: 0, y: 75 }
+    };
+    for (const personId in layout.personsPosition) {
+        console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
+            layout.personsPosition[+personId].y == expectedPersonsPosition[+personId].y);
+    }
+    for (const familyId in layout.familyPosition) {
+        console.assert(layout.familyPosition[+familyId].x == expectedFamilyPosition[+familyId].x &&
+            layout.familyPosition[+familyId].y == expectedFamilyPosition[+familyId].y);
+    }
+    console.log("layout_test.ts: Finished [loop da loop]");
+    // model.reset();
+}
+if (config.test) {
+    console.log("layout_test.ts: Starting [weird stuff]");
+    model.reset();
+    for (let i = 1; i <= 2; i += 1) {
+        model.fakeNewPerson("name" + i);
+    }
+    // Parents: 1 
+    // Children: 2
+    model.fakeNewFamily();
+    model.fakeAttachParent(1, 1);
+    model.fakeAttachChild(1, 2);
+    // Parents: 2
+    // Children: 1
+    model.fakeNewFamily();
+    model.fakeAttachParent(2, 2);
+    model.fakeAttachChild(2, 1);
+    layout.recalculateLayerAssignment();
+    // This output might be useful when debugging this test.
+    // console.log("layers:");
+    // console.log(layout.layers);
+    // let sccs: Record<scc.SccId, Array<model.PersonId>> = {};
+    // for (const personId in model.people) {
+    //     if (sccs[scc.personsSccId[personId]] == undefined) {
+    //         sccs[scc.personsSccId[personId]] = [];
+    //     }
+    //     sccs[scc.personsSccId[personId]].push(+personId);
+    // }
+    // console.log("sccs:");
+    // console.log(sccs);
+    layout.recalculateConstraints();
+    // console.log("constraints:");
+    // console.log(utils.deepArrayToString(layout.layerConstraintsToArray(0)));
+    // console.log(layout.personsConstraints[1]);
+    // console.log(layout.personsConstraints[2]);
+    // console.assert(utils.arraysDeepEqual(layout.layers[0], [1,2]));
+    layout.recalculateLayout();
+    layout.recalculatePositions();
+    // This might be useful to copy the output
+    // printCopyablePersonsPositions();
+    // printCopyableFamilyPositions();
+    const expectedPersonsPosition = {
+        1: { x: 300, y: 0 },
+        2: { x: 0, y: 0 }
+    };
+    const expectedFamilyPosition = {
+        1: { x: 300, y: 75 },
+        2: { x: 0, y: 75 }
+    };
+    for (const personId in layout.personsPosition) {
+        console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
+            layout.personsPosition[+personId].y == expectedPersonsPosition[+personId].y);
+    }
+    for (const familyId in layout.familyPosition) {
+        console.assert(layout.familyPosition[+familyId].x == expectedFamilyPosition[+familyId].x &&
+            layout.familyPosition[+familyId].y == expectedFamilyPosition[+familyId].y);
+    }
+    console.log("layout_test.ts: Finished [weird stuff]");
     // model.reset();
 }
 //# sourceMappingURL=layout_test.js.map

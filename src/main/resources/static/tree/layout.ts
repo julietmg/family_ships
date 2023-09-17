@@ -686,7 +686,9 @@ export let familyLayoutPosition: Record<model.FamilyId, LayoutPosition> = {};
 
 export function recalculateLayout() {
     layout = [];
-    let personsLayoutPosition: Record<model.PersonId, LayoutPosition> = {};
+    let personsLayoutPosition: Record<model.PersonId, { kind: "layout", position: LayoutPosition } | {
+        kind: "considered"
+    }> = {};
     familyLayoutPosition = {};
     let familyDepthInLayer: Array<Record<model.FamilyId, number>> = [];
 
@@ -729,7 +731,10 @@ export function recalculateLayout() {
         let pushed: Array<LayoutPosition> = [];
         for (const childId of familyAssignedChildren[familyId]) {
             pushSliceIntoLayout(childId);
-            pushed.push(personsLayoutPosition[childId]);
+            let childLayoutPosition = personsLayoutPosition[childId];
+            if (childLayoutPosition.kind != "considered") {
+                pushed.push(childLayoutPosition.position);
+            }
         }
         return pushed;
     }
@@ -738,6 +743,8 @@ export function recalculateLayout() {
         if (personsLayoutPosition[sliceId] != undefined) {
             return;
         }
+        // We make sure to only visit slices once.
+        personsLayoutPosition[sliceId] = { kind: "considered" };
         let slice = getSlice(sliceId);
         const layer = personsLayer[slice.left];
 
@@ -801,7 +808,8 @@ export function recalculateLayout() {
                 let completed = true;
                 let withinSlice = true;
                 for (const parentId of model.familyParents(familyId)) {
-                    if (personsLayoutPosition[parentId] == null && !partnersSet.has(parentId)) {
+                    if ((personsLayoutPosition[parentId] == null || personsLayoutPosition[parentId].kind == "considered") &&
+                        !partnersSet.has(parentId)) {
                         completed = false;
                         break;
                     }
@@ -864,7 +872,7 @@ export function recalculateLayout() {
         }
         const nodeLayoutPosition: LayoutPosition = { layer: layer, position: layout[layer].length };
         for (const personId of partnersSet) {
-            personsLayoutPosition[personId] = nodeLayoutPosition;
+            personsLayoutPosition[personId] = { kind: "layout", position: nodeLayoutPosition };
         }
         for (const familyId of familiesSet) {
             familyLayoutPosition[familyId] = nodeLayoutPosition;

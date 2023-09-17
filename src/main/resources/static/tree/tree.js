@@ -325,17 +325,25 @@ export function updateGraphics() {
     function childPathPoints(childPos, familyPos) {
         let sign = Math.sign(familyPos.x - childPos.x);
         if (familyPos.y > childPos.y) {
-            return [[familyPos.x, +familyBoxSize.height / 2],
-                [familyPos.x, +familyBoxSize.height / 2 + 20],
-                [childPos.x + personBoxSize.width, +familyBoxSize.height / 2 + 20],
+            return [[familyPos.x, familyPos.y + familyBoxSize.height / 2],
+                [familyPos.x, familyPos.y + familyBoxSize.height / 2 + 20],
+                [childPos.x + personBoxSize.width, familyPos.y + familyBoxSize.height / 2 + 20],
                 [childPos.x + personBoxSize.width, childPos.y - personBoxSize.height / 2 - 40],
                 [childPos.x, childPos.y - personBoxSize.height / 2 - 40],
                 [childPos.x, childPos.y - personBoxSize.height / 2]];
         }
         if (childPos.y > familyPos.y + layout.spaceBetweenLayers) {
-            return [[familyPos.x, +familyBoxSize.height / 2],
-                [familyPos.x, +familyBoxSize.height / 2 + 20],
-                [childPos.x + sign * (personBoxSize.width / 2 + 20), +familyBoxSize.height / 2 + 20],
+            return [[familyPos.x, familyPos.y + familyBoxSize.height / 2],
+                [familyPos.x, familyPos.y + familyBoxSize.height / 2 + 20],
+                [childPos.x + sign * (personBoxSize.width / 2 + 20), familyPos.y + familyBoxSize.height / 2 + 20],
+                [childPos.x + sign * (personBoxSize.width / 2 + 20), childPos.y - personBoxSize.height / 2 - 40],
+                [childPos.x, childPos.y - personBoxSize.height / 2 - 40],
+                [childPos.x, childPos.y - personBoxSize.height / 2]];
+        }
+        if (childPos.y == familyPos.y) {
+            return [[familyPos.x, familyPos.y + familyBoxSize.height / 2],
+                [familyPos.x, familyPos.y + familyBoxSize.height / 2 + 20],
+                [childPos.x + sign * (personBoxSize.width / 2 + 20), familyPos.y + familyBoxSize.height / 2 + 20],
                 [childPos.x + sign * (personBoxSize.width / 2 + 20), childPos.y - personBoxSize.height / 2 - 40],
                 [childPos.x, childPos.y - personBoxSize.height / 2 - 40],
                 [childPos.x, childPos.y - personBoxSize.height / 2]];
@@ -354,7 +362,7 @@ export function updateGraphics() {
         const dy = pathPoints[1][1] - pathPoints[0][1];
         return {
             x: childPos.x - Math.sign(dx) * (deleteButtonDistanceFromPerson + personBoxSize.width / 2) - buttonSize.width / 2,
-            y: childPos.y - Math.sign(dy) * (deleteButtonDistanceFromPerson + personBoxSize.height / 2) - buttonSize.height / 2
+            y: childPos.y - Math.sign(dy) * (deleteButtonDistanceFromPerson + personBoxSize.height) - buttonSize.height / 2
         };
     }
     g.selectAll(".child").data(childrenLinks, (d) => d.childId + "child" + d.familyId)

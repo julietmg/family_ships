@@ -610,7 +610,10 @@ export function recalculateLayout() {
         let pushed = [];
         for (const childId of familyAssignedChildren[familyId]) {
             pushSliceIntoLayout(childId);
-            pushed.push(personsLayoutPosition[childId]);
+            let childLayoutPosition = personsLayoutPosition[childId];
+            if (childLayoutPosition.kind != "considered") {
+                pushed.push(childLayoutPosition.position);
+            }
         }
         return pushed;
     }
@@ -618,6 +621,8 @@ export function recalculateLayout() {
         if (personsLayoutPosition[sliceId] != undefined) {
             return;
         }
+        // We make sure to only visit slices once.
+        personsLayoutPosition[sliceId] = { kind: "considered" };
         let slice = getSlice(sliceId);
         const layer = personsLayer[slice.left];
         let finishedUnhookedFamilies = [];
@@ -677,7 +682,8 @@ export function recalculateLayout() {
                 let completed = true;
                 let withinSlice = true;
                 for (const parentId of model.familyParents(familyId)) {
-                    if (personsLayoutPosition[parentId] == null && !partnersSet.has(parentId)) {
+                    if ((personsLayoutPosition[parentId] == null || personsLayoutPosition[parentId].kind == "considered") &&
+                        !partnersSet.has(parentId)) {
                         completed = false;
                         break;
                     }
@@ -733,7 +739,7 @@ export function recalculateLayout() {
         };
         const nodeLayoutPosition = { layer: layer, position: layout[layer].length };
         for (const personId of partnersSet) {
-            personsLayoutPosition[personId] = nodeLayoutPosition;
+            personsLayoutPosition[personId] = { kind: "layout", position: nodeLayoutPosition };
         }
         for (const familyId of familiesSet) {
             familyLayoutPosition[familyId] = nodeLayoutPosition;
