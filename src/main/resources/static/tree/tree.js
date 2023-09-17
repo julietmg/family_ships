@@ -92,7 +92,7 @@ async function updateData() {
 let activePeople = new Set();
 let activeFamilies = new Set();
 // -------------------------- Tweakable constants for drawing things --------------------------
-const personBoxSize = { width: 150, height: 80 };
+const personBoxSize = { width: 150, height: 100 };
 const familyBoxSize = { width: 28, height: 28 };
 const familyIconSize = { width: 24, height: 24 };
 const familyChildrenCircleSize = 16;
@@ -102,7 +102,8 @@ const personAddChildButtonOffset = { dx: personBoxSize.width / 2 - 5, dy: -perso
 const personAddPartnerButtonOffset = { dx: personBoxSize.width / 2 - 30, dy: -personBoxSize.height / 2 - 10 };
 const personAddParentButtonOffset = { dx: personBoxSize.width / 2 - 55, dy: -personBoxSize.height / 2 - 10 };
 const buttonSize = { width: 15, height: 15 };
-const deleteButtonDistanceFromPerson = 10;
+const deleteButtonHorizontalDistanceFromPerson = personBoxSize.width / 2 + 7;
+const deleteButtonVerticalDistanceFromPerson = personBoxSize.height / 2 + 7;
 let selectionLink = { source: null, cursorPosition: { x: 0, y: 0 } };
 function findFunctionalEntityAtPoint(x, y) {
     let closest = null;
@@ -243,20 +244,24 @@ export function updateGraphics() {
                 [parentPos.x + sign * (personBoxSize.width / 2 + 20), parentPos.y],
                 [parentPos.x + sign * personBoxSize.width / 2, parentPos.y]];
         }
+        if (sign == 0) {
+            return [[parentPos.x, familyPos.y],
+                [parentPos.x, parentPos.y + personBoxSize.height / 2]];
+        }
         return [[familyPos.x - sign * familyBoxSize.width / 2, familyPos.y],
             [parentPos.x, familyPos.y],
             [parentPos.x, parentPos.y + personBoxSize.height / 2]];
     }
     // TODO: Calculate that based on point and path, calculating an offset or something.
-    function parentPathDeleteButtonPosition(parentId, familyId) {
+    function parentPathDeleteButtonOffset(parentId, familyId) {
         const familyPos = layout.familyPosition[familyId];
         const parentPos = layout.personsPosition[parentId];
         const pathPoints = parentPathPoints(parentPos, familyPos);
         const dx = pathPoints[1][0] - pathPoints[0][0];
         const dy = pathPoints[1][1] - pathPoints[0][1];
         return {
-            x: parentPos.x - Math.sign(dx) * (deleteButtonDistanceFromPerson + personBoxSize.width / 2) - buttonSize.width / 2,
-            y: parentPos.y - Math.sign(dy) * (deleteButtonDistanceFromPerson + personBoxSize.height / 2) - buttonSize.height / 2
+            x: -Math.sign(dx) * (deleteButtonHorizontalDistanceFromPerson) - buttonSize.width / 2,
+            y: -Math.sign(dy) * (deleteButtonVerticalDistanceFromPerson) - buttonSize.height / 2
         };
     }
     function posEqual(a, b) {
@@ -278,8 +283,8 @@ export function updateGraphics() {
             .attr("stroke-dashoffset", (d) => fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dashoffset"]);
         parentLinkHook.append("image")
             .attr("xlink:href", "icons/delete.svg")
-            .attr("x", (d) => parentPathDeleteButtonPosition(d.parentId, d.familyId).x)
-            .attr("y", (d) => parentPathDeleteButtonPosition(d.parentId, d.familyId).y)
+            .attr("x", (d) => layout.personsPosition[d.parentId].x + parentPathDeleteButtonOffset(d.parentId, d.familyId).x)
+            .attr("y", (d) => layout.personsPosition[d.parentId].y + parentPathDeleteButtonOffset(d.parentId, d.familyId).y)
             .attr("width", () => buttonSize.width)
             .attr("height", () => buttonSize.height)
             .style("opacity", 0).attr("display", "none")
@@ -308,10 +313,8 @@ export function updateGraphics() {
             .attr("stroke-dashoffset", (d) => fadePathStrokeAfterTransition(parentPathPoints(layout.personsPosition[d.parentId], layout.familyPosition[d.familyId]))["stroke-dashoffset"]);
         changedPosition
             .select("image")
-            .attr("x", (d) => {
-            return parentPathDeleteButtonPosition(d.parentId, d.familyId).x;
-        })
-            .attr("y", (d) => parentPathDeleteButtonPosition(d.parentId, d.familyId).y);
+            .attr("x", (d) => layout.personsPosition[d.parentId].x + parentPathDeleteButtonOffset(d.parentId, d.familyId).x)
+            .attr("y", (d) => layout.personsPosition[d.parentId].y + parentPathDeleteButtonOffset(d.parentId, d.familyId).y);
         // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
         update.filter((d) => !activePeople.has(d.parentId)).select("image")
             .transition().duration(500).style("opacity", 0);
@@ -354,15 +357,15 @@ export function updateGraphics() {
             [childPos.x, midHeight],
             [childPos.x, childPos.y - personBoxSize.height / 2]];
     }
-    function childPathDeleteButtonPosition(childId, familyId) {
+    function childPathDeleteButtonOffset(childId, familyId) {
         const familyPos = layout.familyPosition[familyId];
         const childPos = layout.personsPosition[childId];
         const pathPoints = childPathPoints(childPos, familyPos);
         const dx = pathPoints[1][0] - pathPoints[0][0];
         const dy = pathPoints[1][1] - pathPoints[0][1];
         return {
-            x: childPos.x - Math.sign(dx) * (deleteButtonDistanceFromPerson + personBoxSize.width / 2) - buttonSize.width / 2,
-            y: childPos.y - Math.sign(dy) * (deleteButtonDistanceFromPerson + personBoxSize.height) - buttonSize.height / 2
+            x: -Math.sign(dx) * (deleteButtonHorizontalDistanceFromPerson) - buttonSize.width / 2,
+            y: -Math.sign(dy) * (deleteButtonVerticalDistanceFromPerson) - buttonSize.height / 2
         };
     }
     g.selectAll(".child").data(childrenLinks, (d) => d.childId + "child" + d.familyId)
@@ -381,8 +384,8 @@ export function updateGraphics() {
             .attr("stroke-dashoffset", (d) => fadePathStrokeAfterTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dashoffset"]);
         childLinkHook.append("image")
             .attr("xlink:href", "icons/delete.svg")
-            .attr("x", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).x)
-            .attr("y", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).y)
+            .attr("x", (d) => layout.personsPosition[d.childId].x + childPathDeleteButtonOffset(d.childId, d.familyId).x)
+            .attr("y", (d) => layout.personsPosition[d.childId].y + childPathDeleteButtonOffset(d.childId, d.familyId).y)
             .attr("width", () => buttonSize.width)
             .attr("height", () => buttonSize.height)
             .style("opacity", 0).attr("display", "none")
@@ -410,8 +413,8 @@ export function updateGraphics() {
             .attr("stroke-dashoffset", (d) => fadePathStrokeAfterTransition(childPathPoints(layout.personsPosition[d.childId], layout.familyPosition[d.familyId]))["stroke-dashoffset"]);
         changedPosition
             .select("image")
-            .attr("x", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).x)
-            .attr("y", (d) => childPathDeleteButtonPosition(d.childId, d.familyId).y);
+            .attr("x", (d) => layout.personsPosition[d.childId].x + +childPathDeleteButtonOffset(d.childId, d.familyId).x)
+            .attr("y", (d) => layout.personsPosition[d.childId].y + childPathDeleteButtonOffset(d.childId, d.familyId).y);
         // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
         update.filter((d) => !activePeople.has(d.childId)).select("image")
             .transition().duration(500).style("opacity", 0);
@@ -617,9 +620,11 @@ export function updateGraphics() {
             textAreaStyleAttrs["font-size"] = "24px";
             textAreaStyleAttrs["font-family"] = "Dancing Script";
             textAreaStyleAttrs["text-align"] = "Center";
-            textAreaStyleAttrs["width"] = "" + personBoxSize.width + "px";
+            textAreaStyleAttrs["width"] = "" + (personBoxSize.width - 10) + "px";
+            textAreaStyleAttrs["height"] = "" + (personBoxSize.height - 10) + "px";
             textAreaStyleAttrs["resize"] = "none";
             textAreaStyleAttrs["border"] = "none";
+            textAreaStyleAttrs["border-radius"] = "4px";
             textAreaStyleAttrs["background"] = "transparent";
             textAreaStyleAttrs["outline"] = "none";
             let styleString = "";
