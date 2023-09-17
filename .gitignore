@@ -39,3 +39,9 @@ build/
 node_modules
 
 .DS_Store
+
+google-cloud-sdk
+application-to-deploy.properties
+application-mysql.properties
+appengine
+app.yaml

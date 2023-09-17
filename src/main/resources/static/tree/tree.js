@@ -4,12 +4,12 @@ import * as config from "./config.js";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
 // ----------------- Running tests ------------------
-import "./scc_test.js";
-import "./model_test.js";
-import "./reachability_test.js";
-import "./layout_test.js";
-import "./deque_test.js";
-import "./reversible_deque_test.js";
+// import "./scc_test.js";
+// import "./model_test.js";
+// import "./reachability_test.js";
+// import "./layout_test.js";
+// import "./deque_test.js";
+// import "./reversible_deque_test.js";
 // Showcase the icons that we have in the debug mode.
 if (config.debug) {
     function showDebugIcon(path) {
