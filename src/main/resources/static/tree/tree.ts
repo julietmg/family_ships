@@ -122,6 +122,7 @@ const personDeleteButtonOffset = { dx: -personBoxSize.width / 2 + 5, dy: -person
 const personSaveChangesButtonOffset = { dx: -personBoxSize.width / 2 + 30, dy: -personBoxSize.height / 2 - 10 };
 const personAddChildButtonOffset= { dx: personBoxSize.width / 2 - 5, dy: -personBoxSize.height / 2 - 10 };
 const personAddPartnerButtonOffset = { dx: personBoxSize.width / 2 - 30, dy: -personBoxSize.height / 2 - 10 };
+const personAddParentButtonOffset = { dx: personBoxSize.width / 2 - 55, dy: -personBoxSize.height / 2 - 10 };
 
 
 const buttonSize = { width: 15, height: 15 };
@@ -794,6 +795,26 @@ export function updateGraphics() {
                 }
                 );
 
+                let personAddParentButton = personHook.append("g")
+                    .attr("class", () => "person_add_parent_button")
+                    .style("opacity", 0).attr("display", "none");
+
+                personAddParentButton.append("image").attr("xlink:href", "icons/add_parent.svg")
+                    .attr("x", () => personAddParentButtonOffset.dx - buttonSize.width / 2)
+                    .attr("y", () => personAddParentButtonOffset.dy - buttonSize.height / 2)
+                    .attr("width", () => buttonSize.width)
+                    .attr("height", () => buttonSize.height);
+
+
+                personAddParentButton.on("click", async (event, d) => {
+                    let familyId = await model.newFamily();
+                    let parent = await model.newPerson("Parent");
+                    await model.attachParent(familyId, parent);
+                    await model.attachChild(familyId, d);
+                    await updateAll();
+                }
+                );
+
                 let personAddPartnerButton = personHook.append("g")
                     .attr("class", () => "person_add_partner_button")
                     .style("opacity", 0).attr("display", "none");
@@ -865,6 +886,15 @@ export function updateGraphics() {
                 return personHook;
             },
             update => {
+                // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
+                update.filter((d) => !activePeople.has(d)).select(".person_add_parent_button")
+                    .transition().duration(500).style("opacity", 0);
+                update.filter((d) => !activePeople.has(d)).select(".person_add_parent_button")
+                    .transition().delay(500).attr("display", "none");
+                update.filter((d) => activePeople.has(d)).select(".person_add_parent_button")
+                    .transition().delay(0).attr("display", null)
+                    .transition().duration(500).style("opacity", 1);
+
                 // https://groups.google.com/g/d3-js/c/hRlz9hndpmA/m/BH89BQIRCp4J
                 update.filter((d) => !activePeople.has(d)).select(".person_delete_button")
                     .transition().duration(500).style("opacity", 0);

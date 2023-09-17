@@ -5,4 +5,3 @@ export const test: boolean = false;
 // When this is true, certain log lines will appear on the console.
 export const debug: boolean = false;
 
-s
