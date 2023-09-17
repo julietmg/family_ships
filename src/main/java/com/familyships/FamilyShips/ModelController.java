@@ -137,6 +137,8 @@ public class ModelController {
         for (FamilyParent familyParent : person.getParentOfFamily()) {
             familyParentRepository.delete(familyParent);
         }
+        tree.deletePerson(person);
+        treeRepository.save(tree);
         personRepository.delete(person);
         return true;
     }
@@ -179,6 +181,8 @@ public class ModelController {
             familyParentRepository.delete(familyParent);
         }
 
+        tree.deleteFamily(family);
+        treeRepository.save(tree);
         familyRepository.delete(family);
         return true;
     }
@@ -223,6 +227,13 @@ public class ModelController {
         }
         FamilyChildKey familyChildKey = new FamilyChildKey(familyId, childId);
         familyChildRepository.deleteById(familyChildKey);
+
+        Family family = familyRepository.findById(familyId).get();
+        if(family.getChildren().size() == 0 && family.getParents().size() == 0) {
+            tree.deleteFamily(family);
+            treeRepository.save(tree);
+            familyRepository.delete(family);
+        }
         return true;
     }
 
@@ -267,6 +278,12 @@ public class ModelController {
         }
         FamilyParentKey familyParentKey = new FamilyParentKey(familyId, parentId);
         familyParentRepository.deleteById(familyParentKey);
+        Family family = familyRepository.findById(familyId).get();
+        if(family.getChildren().size() == 0 && family.getParents().size() == 0) {
+            tree.deleteFamily(family);
+            treeRepository.save(tree);
+            familyRepository.delete(family);
+        }
         return true;
     }
 

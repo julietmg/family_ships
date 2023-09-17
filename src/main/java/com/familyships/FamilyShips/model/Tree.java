@@ -36,4 +36,12 @@ public class Tree {
     public Set<Family> getFamilies() {
         return families;
     }
+
+    public void deleteFamily(Family family) {
+        families.remove(family);
+    }
+
+    public void deletePerson(Person person) {
+        people.remove(person);
+    }
 }
