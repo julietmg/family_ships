@@ -1,15 +1,24 @@
 package com.familyships.FamilyShips.authentication;
 
+import java.util.Set;
+
+import com.familyships.FamilyShips.model.Tree;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 
 @Entity 
 public class User {
   @Id
   @GeneratedValue(strategy=GenerationType.AUTO)
   private Integer id;
+
+  @OneToOne
+  private Tree tree;
   
   // Identifier for people logged in with Google
   private String googleSub;
@@ -48,5 +57,13 @@ public class User {
 
   public void setGitLogin(String gitLogin) {
     this.gitLogin = gitLogin;
+  }
+
+  public void attachTree(Tree tree) {
+    this.tree = tree;
+  }
+
+  public Tree getTree() {
+    return this.tree;
   }
 }

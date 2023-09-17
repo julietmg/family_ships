@@ -2,6 +2,7 @@ package com.familyships.FamilyShips.authentication;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import com.familyships.FamilyShips.authentication.User;
 

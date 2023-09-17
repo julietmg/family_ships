@@ -40,8 +40,7 @@ public class ModelControllerTests {
     private FamilyParentRepository familyParentRepository;
 
     @Test
-    void testPeople() throws Exception {
-        // TODO: Add more tests.
+    void testAddingPerson() throws Exception {
         given(personRepository.save(any())).willAnswer((invocation)-> {
             Person person = (Person) invocation.getArguments()[0];
             person.setId(1);
@@ -55,5 +54,4 @@ public class ModelControllerTests {
 
         verify(personRepository).save(argThat(p -> p.getNames().toArray()[0].equals("Robert")));
     }
-
 }

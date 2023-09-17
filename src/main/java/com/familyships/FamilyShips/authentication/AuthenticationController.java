@@ -11,11 +11,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.familyships.FamilyShips.model.FamilyParentRepository;
+import com.familyships.FamilyShips.model.Tree;
+import com.familyships.FamilyShips.model.TreeRepository;
+
 @Controller
 @RequestMapping(path = "/auth")
 public class AuthenticationController {
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private TreeRepository treeRepository;
 
     public class UnknownUserIdentifierException extends Exception {
     }
@@ -23,12 +29,12 @@ public class AuthenticationController {
     // TODO: Get rid of this endpoint in production
     @GetMapping(path = "/debug")
     public @ResponseBody Map<String, Object> debug(@AuthenticationPrincipal OAuth2User principal) {
-        
         return principal.getAttributes();
     }
 
     @GetMapping("/id")
-    public @ResponseBody Map<String, Object> id(@AuthenticationPrincipal OAuth2User principal) throws UnknownUserIdentifierException {
+    public @ResponseBody Map<String, Object> id(@AuthenticationPrincipal OAuth2User principal)
+            throws UnknownUserIdentifierException {
         String googleSub = principal.getAttribute("sub");
         if (googleSub != null) {
             // Based on https://developers.google.com/identity/openid-connect/openid-connect
@@ -38,6 +44,9 @@ public class AuthenticationController {
                 user = new User();
                 user.setGoogleSub(googleSub);
                 user.setName(principal.getAttribute("given_name"));
+                Tree tree = new Tree();
+                tree = treeRepository.save(tree);
+                user.attachTree(tree);
                 userRepository.save(user);
             }
 
@@ -52,7 +61,10 @@ public class AuthenticationController {
             if (user == null) {
                 user = new User();
                 user.setGitLogin(gitLogin);
-                 user.setName(principal.getAttribute("name"));
+                user.setName(principal.getAttribute("name"));
+                Tree tree = new Tree();
+                tree = treeRepository.save(tree);
+                user.attachTree(tree);
                 userRepository.save(user);
             }
             return Collections.singletonMap("name", user.getName());
