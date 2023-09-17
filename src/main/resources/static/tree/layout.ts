@@ -27,9 +27,10 @@ export function recalculate() {
 
 // -------------------------- Assigning people to layers --------------------------
 
-// Exported just for testing purposes
 export let layers: Array<Array<model.PersonId>> = [];
 export let personsLayer: Record<model.PersonId, number> = {};
+
+// TODO: Consider assiging the layer more dynamically, with a union find approach.
 
 // Exported just for testing purposes
 export function recalculateLayerAssignment() {
@@ -82,7 +83,7 @@ export function recalculateLayerAssignment() {
             break;
         }
 
-        const leftiousConsidered = new Set(considered);
+        const previousConsidered = new Set(considered);
 
         // We will now iterate throwing out people that have partners outside of the considered set.
         // This might require more than one iteration, so we repeat that process until there are no
@@ -134,6 +135,7 @@ export function recalculateLayerAssignment() {
                 }
 
                 for (const id of consideredPartners) {
+                    // TODO: Consider attempting to synchronise the whole trees.
                     changed = considered.delete(id) || changed;
                 }
             }
@@ -143,7 +145,7 @@ export function recalculateLayerAssignment() {
         // before the process of throwing out people.
         if (considered.size == 0) {
             console.log("BUG: There is something weird with partner resolution.")
-            considered = leftiousConsidered;
+            considered = previousConsidered;
         }
 
         // considered now contains all the people that will appear in this layer.
@@ -309,54 +311,46 @@ export function recalculateConstraints() {
         familyAssignedChildren[+familyId] = [];
     }
 
-    // This recursively reverses all the blocks this block depends on.
-    // TODO: Fix this! This should also reverse the child dependencies.
     function reverseBlock(blockRepresentantId: model.PersonId) {
-        function collectThingsToReverse(startBlockId : model.PersonId, blocks : Set<model.PersonId>, families : Set<model.FamilyId>) {
-            if(blocks.has(startBlockId)) {
+        function collectThingsToReverse(startBlockId: model.PersonId, blocks: Set<model.PersonId>, families: Set<model.FamilyId>) {
+            if (blocks.has(startBlockId)) {
                 return;
             }
             blocks.add(startBlockId);
-            for(const sliceId of slicesInBlock(startBlockId)) {
+            for (const sliceId of slicesInBlock(startBlockId)) {
                 const peopleInSlice = sliceToArray(sliceId);
-                for(const personId of peopleInSlice) {
+                for (const personId of peopleInSlice) {
                     const familyId = personsConstraints[personId].assignedFamily;
-                    if(familyId == undefined) {
+                    if (familyId == undefined) {
                         continue;
                     }
                     const slice = familySlice[familyId];
-                    if(slice == undefined) {
+                    if (slice == undefined) {
                         continue;
                     }
                     families.add(familyId);
                     collectThingsToReverse(getBlockId(slice.left), blocks, families);
                 }
-                for(const personId of peopleInSlice) {
-                    for(const familyId of personsConstraints[personId].beginsFamilySlices) {
-                        for(const personId of familyAssignedChildren[familyId]) {
+                for (const personId of peopleInSlice) {
+                    for (const familyId of personsConstraints[personId].beginsFamilySlices) {
+                        for (const personId of familyAssignedChildren[familyId]) {
                             collectThingsToReverse(getBlockId(personId), blocks, families);
                         }
                     }
-                    for(const familyId of personsConstraints[personId].endsFamilySlices) {
-                        for(const personId of familyAssignedChildren[familyId]) {
+                    for (const familyId of personsConstraints[personId].endsFamilySlices) {
+                        for (const personId of familyAssignedChildren[familyId]) {
                             collectThingsToReverse(getBlockId(personId), blocks, families);
                         }
                     }
                 }
             }
         }
-        console.log("Before reverse of " + blockRepresentantId + ":" );
-        for(const layerId in layers) {
-            console.log(utils.deepArrayToString(layerConstraintsToArray(+layerId)));
-        }
-        let dependentBlocks : Set<model.PersonId> = new Set();
-        let dependentFamilies : Set<model.FamilyId> = new Set();
+        let dependentBlocks: Set<model.PersonId> = new Set();
+        let dependentFamilies: Set<model.FamilyId> = new Set();
         collectThingsToReverse(getBlockId(blockRepresentantId), dependentBlocks, dependentFamilies);
-        console.log("Blocks that will be reversed: ");
-        console.log(dependentBlocks);
-        for(let blockId of dependentBlocks) {
-            for(const sliceId of slicesInBlock(blockId)) {
-                for(const personId of sliceToArray(sliceId)) {
+        for (let blockId of dependentBlocks) {
+            for (const sliceId of slicesInBlock(blockId)) {
+                for (const personId of sliceToArray(sliceId)) {
                     let tmp = personsConstraints[personId].beginsFamilySlices;
                     personsConstraints[personId].beginsFamilySlices = personsConstraints[personId].endsFamilySlices;
                     personsConstraints[personId].endsFamilySlices = tmp;
@@ -368,17 +362,11 @@ export function recalculateConstraints() {
             }
             getBlock(blockId).reverse();
         }
-        console.log("Families that will be reversed: ");
-        console.log(dependentFamilies);
-        for(let familyId of dependentFamilies) {
+        for (let familyId of dependentFamilies) {
             const tmp = familySlice[familyId].left;
             familySlice[familyId].left = familySlice[familyId].right;
             familySlice[familyId].right = tmp;
             familyAssignedChildren[familyId].reverse();
-        }
-        console.log("After reverse of " + blockRepresentantId + ":");
-        for(const layerId in layers) {
-            console.log(utils.deepArrayToString(layerConstraintsToArray(+layerId)));
         }
     }
 
@@ -628,7 +616,9 @@ export function recalculateConstraints() {
                 if (attemptConstraint(partnerId, personId)) {
                     continue;
                 }
-
+                // Note that this is pretty costly, as we possible traverse the whole tree
+                // We could avoid doing it multiple times, but there is no need to do that now
+                // as things seem to work fast enough.
                 reverseBlock(personId);
                 if (attemptConstraint(personId, partnerId)) {
                     continue;
@@ -654,13 +644,13 @@ export function recalculateConstraints() {
 
     if (config.debug) {
         console.log("Final constraints:")
-        for(const layerId in layers) {
+        for (const layerId in layers) {
             console.log(utils.deepArrayToString(layerConstraintsToArray(+layerId)));
         }
     }
 }
 
-// // -------------------------- Sorting people in each layer according to the collected constraints --------------------------
+// -------------------------- Sorting people in each layer according to the collected constraints --------------------------
 
 type LayoutPosition = {
     layer: number
@@ -735,8 +725,6 @@ export function recalculateLayout() {
         return extractLastPersonFromLayoutNode(lastLayoutNode);
     }
 
-
-
     function pushFamilyMembersIntoLayout(familyId: model.FamilyId): Array<LayoutPosition> {
         let pushed: Array<LayoutPosition> = [];
         for (const childId of familyAssignedChildren[familyId]) {
@@ -762,7 +750,6 @@ export function recalculateLayout() {
         let partnersSet: Set<model.PersonId> = new Set();
         let familiesSet: Set<model.FamilyId> = new Set();
 
-        // TODO: Track max depth per layer and increment the floating nodes from there.
         let openFamilies: Set<model.FamilyId> = new Set();
 
         let slicePeople = sliceToArray(sliceId);
@@ -843,7 +830,7 @@ export function recalculateLayout() {
             const parents = model.familyParents(familyId);
             let floatingFamilyNode: FloatingFamilyLayoutNode = { kind: "family", family: { familyId: familyId, members: pushFamilyMembersIntoLayout(familyId), depth: depth } };
             if (parents.length == 2 && parents.includes(lastPerson) && parents.includes(slice.left)) {
-                floatingFamilyNode.family.depth = 0;
+                floatingFamilyNode.family.depth = "partner";
             }
             // TODO: Attach it to ther person on the right?
             const floatingFamilyLayoutPosition: LayoutPosition = { layer: layer, position: layout[layer].length };
@@ -913,6 +900,12 @@ export function recalculateLayout() {
 
 // -------------------------- Placing people in correct places on the plane using the layer information and some heuristics --------------------------
 
+export const spaceBetweenLayers = 200.0;
+export const spaceBetweenPeople = 300.0;
+export const depthFamilyBase = 60.0;
+export const depthModifier = 15.0;
+export const overlayOffset = 10.0;
+
 export function recalculatePositions() {
     // Reset the existing positions before recalculating
     personsPosition = {};
@@ -924,12 +917,6 @@ export function recalculatePositions() {
         layerBox.push(0);
         nextLayoutNodeToDrawOnLayer.push(0);
     }
-
-    const spaceBetweenLayers = 200.0;
-    const spaceBetweenPeople = 300.0;
-    const depthFamilyBase = 60.0;
-    const depthModifier = 15.0;
-    const overlayOffset = 10.0;
 
     function calculatePositionForPerson(personId: model.PersonId, suggestedBoxStart: number): [number, number] {
         if (config.debug) { console.log("Starting person " + personId + ": " + suggestedBoxStart + " [" + layerBox[personsLayer[personId]] + "]"); }

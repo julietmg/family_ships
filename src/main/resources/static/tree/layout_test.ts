@@ -151,31 +151,31 @@ if (config.test) {
     // printCopyablePersonsPositions();
     // printCopyableFamilyPositions();
 
-    const expectedPersonsPosition: Record<model.PersonId, { x: number, y: number }> = {
-        1: { x: 0, y: 0 },
-        2: { x: 300, y: 0 },
-        3: { x: 300, y: 200 },
-        4: { x: 0, y: 200 },
-        5: { x: 1200, y: 0 },
-        6: { x: 1500, y: 0 },
-        7: { x: 1200, y: 200 },
-        8: { x: 600, y: 400 },
-        9: { x: 1800, y: 0 },
-        10: { x: 2100, y: 0 },
-        11: { x: 1500, y: 200 },
-        12: { x: 1200, y: 400 },
-        13: { x: 900, y: 600 },
-        14: { x: 2100, y: 600 }
-    };
-    const expectedFamilyPosition: Record<model.FamilyId, { x: number, y: number }> = {
-        1: { x: 150, y: 0 },
-        2: { x: 1350, y: 0 },
-        3: { x: 600, y: 260 },
-        4: { x: 1350, y: 200 },
-        5: { x: 900, y: 460 },
-        6: { x: 2100, y: 75 },
-        7: { x: 1200, y: 660 }
-    };
+    const expectedPersonsPosition: Record<model.PersonId, { x: number, y: number }> = 
+    {
+        1: { x:0, y:0 },
+        2: { x:300, y:0 },
+        3: { x:300, y:200 },
+        4: { x:0, y:200 },
+        5: { x:1200, y:0 },
+        6: { x:1500, y:0 },
+        7: { x:1200, y:200 },
+        8: { x:600, y:400 },
+        9: { x:1800, y:0 },
+        10: { x:2100, y:0 },
+        11: { x:1500, y:200 },
+        12: { x:1200, y:400 },
+        13: { x:900, y:600 },
+        14: { x:2100, y:600 }};
+    const expectedFamilyPosition: Record<model.FamilyId, { x: number, y: number }> = 
+    {
+        1: { x:150, y:0 },
+        2: { x:1350, y:0 },
+        3: { x:600, y:200 },
+        4: { x:1350, y:200 },
+        5: { x:900, y:400 },
+        6: { x:2100, y:75 },
+        7: { x:1200, y:600 }};
     for (const personId in layout.personsPosition) {
         console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
             layout.personsPosition[+personId].y == expectedPersonsPosition[+personId].y);
@@ -409,6 +409,115 @@ if (config.test) {
         2: { x: 450, y: 60 },
         3: { x: 300, y: 0 }
     };
+    for (const personId in layout.personsPosition) {
+        console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
+            layout.personsPosition[+personId].y == expectedPersonsPosition[+personId].y);
+    }
+    for (const familyId in layout.familyPosition) {
+        console.assert(layout.familyPosition[+familyId].x == expectedFamilyPosition[+familyId].x &&
+            layout.familyPosition[+familyId].y == expectedFamilyPosition[+familyId].y);
+    }
+
+    console.log("layout_test.ts: Finished [children links do not collide]");
+    // model.reset();
+}
+
+if (config.test) {
+    console.log("layout_test.ts: Starting [reversal constraints]");
+    model.reset();
+
+    for (let i = 1; i <= 16; i += 1) {
+        model.fakeNewPerson("name" + i);
+    }
+
+    // Parents: 1 2
+    // Children: 3 13
+    model.fakeNewFamily(); model.fakeAttachParent(1, 1); model.fakeAttachParent(1, 2);
+    model.fakeAttachChild(1, 3);
+    model.fakeAttachChild(1, 13);
+
+    // Parents: 4 5
+    // Children: 6 14
+    model.fakeNewFamily(); model.fakeAttachParent(2, 4); model.fakeAttachParent(2, 5);
+    model.fakeAttachChild(2, 6);
+    model.fakeAttachChild(2, 14);
+
+    // Parents: 7 8
+    // Children: 9 15
+    model.fakeNewFamily(); model.fakeAttachParent(3, 7); model.fakeAttachParent(3, 8);
+    model.fakeAttachChild(3, 9);
+    model.fakeAttachChild(3, 15);
+
+     // Parents: 10 11
+    // Children: 12 16
+    model.fakeNewFamily(); model.fakeAttachParent(4, 10); model.fakeAttachParent(4, 11);
+    model.fakeAttachChild(4, 12);
+    model.fakeAttachChild(3, 16);
+
+    // Parents: 13 6
+    model.fakeNewFamily(); model.fakeAttachParent(5, 13); model.fakeAttachParent(5, 6);
+
+    // Parents: 15 12
+    model.fakeNewFamily(); model.fakeAttachParent(6, 15); model.fakeAttachParent(6, 12);
+
+    // Parents: 14 16
+    model.fakeNewFamily(); model.fakeAttachParent(7, 14); model.fakeAttachParent(7, 16);
+
+    layout.recalculateLayerAssignment();
+
+    // This output might be useful when debugging this test.
+    // console.log("layers:");
+    // console.log(layout.layers);
+    // let sccs: Record<scc.SccId, Array<model.PersonId>> = {};
+    // for (const personId in model.people) {
+    //     if (sccs[scc.personsSccId[personId]] == undefined) {
+    //         sccs[scc.personsSccId[personId]] = [];
+    //     }
+    //     sccs[scc.personsSccId[personId]].push(+personId);
+    // }
+    // console.log("sccs:");
+    // console.log(sccs);
+    layout.recalculateConstraints();
+    // console.log("constraints:");
+    // console.log(utils.deepArrayToString(layout.layerConstraintsToArray(0)));
+    // console.log(utils.deepArrayToString(layout.layerConstraintsToArray(1)));
+    // console.log(layout.personsConstraints[1]);
+    // console.log(layout.personsConstraints[2]);
+
+    layout.recalculateLayout();
+    layout.recalculatePositions();
+
+    // This might be useful to copy the output
+    // printCopyablePersonsPositions();
+    // printCopyableFamilyPositions();
+
+    const expectedPersonsPosition: Record<model.PersonId, { x: number, y: number }> =
+    {
+        1: { x:2700, y:0 },
+        2: { x:3000, y:0 },
+        3: { x:3000, y:200 },
+        4: { x:1800, y:0 },
+        5: { x:2100, y:0 },
+        6: { x:2100, y:200 },
+        7: { x:750, y:0 },
+        8: { x:1050, y:0 },
+        9: { x:900, y:200 },
+        10: { x:0, y:0 },
+        11: { x:300, y:0 },
+        12: { x:0, y:200 },
+        13: { x:2700, y:200 },
+        14: { x:1800, y:200 },
+        15: { x:600, y:200 },
+        16: { x:1200, y:200 }};
+    const expectedFamilyPosition: Record<model.FamilyId, { x: number, y: number }> =
+    {
+        1: { x:2850, y:0 },
+        2: { x:1950, y:0 },
+        3: { x:900, y:0 },
+        4: { x:150, y:0 },
+        5: { x:2400, y:200 },
+        6: { x:300, y:200 },
+        7: { x:1500, y:200 }};
     for (const personId in layout.personsPosition) {
         console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
             layout.personsPosition[+personId].y == expectedPersonsPosition[+personId].y);
