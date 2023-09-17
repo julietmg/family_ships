@@ -667,6 +667,7 @@ export function recalculateLayout() {
                     familiesOfCurrent.push({ family: familyId, depth: "single" });
                 }
                 else {
+                    familiesOfCurrent.push({ family: familyId, depth: familyDepthInLayer[layer][familyId] + 2 });
                     delete familyDepthInLayer[layer][familyId];
                 }
                 familiesSet.add(familyId);

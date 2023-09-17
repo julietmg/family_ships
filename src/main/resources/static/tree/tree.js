@@ -4,12 +4,12 @@ import * as config from "./config.js";
 import * as model from "./model.js";
 import * as layout from "./layout.js";
 // ----------------- Running tests ------------------
-// import "./scc_test.js";
-// import "./model_test.js";
-// import "./reachability_test.js";
-// import "./layout_test.js";
-// import "./deque_test.js";
-// import "./reversible_deque_test.js";
+import "./scc_test.js";
+import "./model_test.js";
+import "./reachability_test.js";
+import "./layout_test.js";
+import "./deque_test.js";
+import "./reversible_deque_test.js";
 // Showcase the icons that we have in the debug mode.
 if (config.debug) {
     function showDebugIcon(path) {
@@ -256,12 +256,12 @@ export function updateGraphics() {
     function parentPathDeleteButtonOffset(parentId, familyId) {
         const familyPos = layout.familyPosition[familyId];
         const parentPos = layout.personsPosition[parentId];
-        const pathPoints = parentPathPoints(parentPos, familyPos);
-        const dx = pathPoints[1][0] - pathPoints[0][0];
-        const dy = pathPoints[1][1] - pathPoints[0][1];
+        const pathPoints = parentPathPoints(parentPos, familyPos).slice(-2);
+        const dx = pathPoints[0][0] - pathPoints[1][0];
+        const dy = pathPoints[0][1] - pathPoints[1][1];
         return {
-            x: -Math.sign(dx) * (deleteButtonHorizontalDistanceFromPerson) - buttonSize.width / 2,
-            y: -Math.sign(dy) * (deleteButtonVerticalDistanceFromPerson) - buttonSize.height / 2
+            x: Math.sign(dx) * (deleteButtonHorizontalDistanceFromPerson) - buttonSize.width / 2,
+            y: Math.sign(dy) * (deleteButtonVerticalDistanceFromPerson) - buttonSize.height / 2
         };
     }
     function posEqual(a, b) {
@@ -322,6 +322,8 @@ export function updateGraphics() {
             .transition().delay(500).attr("display", "none");
         update.filter((d) => activePeople.has(d.parentId)).select("image").attr("display", null)
             .transition().duration(500).style("opacity", 1);
+        update.filter((d) => activePeople.has(d.parentId)).select("path").style("stroke-width", "2");
+        update.filter((d) => !activePeople.has(d.parentId)).select("path").style("stroke-width", null);
         return update;
     }, exit => exit.remove());
     // -------------------------- Drawing children paths --------------------------
@@ -360,12 +362,12 @@ export function updateGraphics() {
     function childPathDeleteButtonOffset(childId, familyId) {
         const familyPos = layout.familyPosition[familyId];
         const childPos = layout.personsPosition[childId];
-        const pathPoints = childPathPoints(childPos, familyPos);
-        const dx = pathPoints[1][0] - pathPoints[0][0];
-        const dy = pathPoints[1][1] - pathPoints[0][1];
+        const pathPoints = childPathPoints(childPos, familyPos).slice(-2);
+        const dx = pathPoints[0][0] - pathPoints[1][0];
+        const dy = pathPoints[0][1] - pathPoints[1][1];
         return {
-            x: -Math.sign(dx) * (deleteButtonHorizontalDistanceFromPerson) - buttonSize.width / 2,
-            y: -Math.sign(dy) * (deleteButtonVerticalDistanceFromPerson) - buttonSize.height / 2
+            x: Math.sign(dx) * (deleteButtonHorizontalDistanceFromPerson) - buttonSize.width / 2,
+            y: Math.sign(dy) * (deleteButtonVerticalDistanceFromPerson) - buttonSize.height / 2
         };
     }
     g.selectAll(".child").data(childrenLinks, (d) => d.childId + "child" + d.familyId)
@@ -422,6 +424,8 @@ export function updateGraphics() {
             .transition().delay(500).attr("display", "none");
         update.filter((d) => activePeople.has(d.childId)).select("image").attr("display", null)
             .transition().duration(500).style("opacity", 1);
+        update.filter((d) => activePeople.has(d.childId)).select("path").style("stroke-width", "2");
+        update.filter((d) => !activePeople.has(d.childId)).select("path").style("stroke-width", null);
         return update;
     }, exit => exit.remove());
     // -------------------------- Drawing family nodes --------------------------

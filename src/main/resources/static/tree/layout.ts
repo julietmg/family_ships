@@ -793,6 +793,7 @@ export function recalculateLayout() {
                 } else if (model.familyParents(familyId).length == 1) {
                     familiesOfCurrent.push({ family: familyId, depth: "single" });
                 } else {
+                    familiesOfCurrent.push({ family: familyId, depth: familyDepthInLayer[layer][familyId] + 2});
                     delete familyDepthInLayer[layer][familyId];
                 }
                 familiesSet.add(familyId);
