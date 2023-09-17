@@ -119,13 +119,7 @@ function findFunctionalEntityAtPoint(x, y) {
         let pos = layout.familyPosition[familyId];
         const distanceSquared = Math.pow(pos.x - x, 2) + Math.pow(pos.y - y, 2);
         if (distanceSquared < Math.pow(familyBoxSize.height, 2) && closestDistanceSquared == null || distanceSquared < closestDistanceSquared) {
-            let kind = "family-parent";
-            // Dragging to/from bottom parts creates a child. 
-            // Dragging to/from top parts creates a parent.
-            if (y > pos.y + familyBoxSize.height / 4) {
-                kind = "family-child";
-            }
-            closest = { kind: kind, familyId: +familyId };
+            closest = { kind: "family", familyId: +familyId };
             closestDistanceSquared = distanceSquared;
         }
     }
@@ -135,51 +129,54 @@ function personNameBoxTag(d) {
     return 'name_' + d;
 }
 async function functionalEntityConnectionAction(source, target) {
-    if (source.kind == target.kind) {
-        if (source.kind == "person") {
-            if (activePeople.has(source.personId)) {
-                activePeople.delete(source.personId);
-            }
-            else {
-                activePeople.add(source.personId);
-            }
-            updateGraphics();
+    if (source.kind == "person-partner") {
+        if (target.kind == "person" && target.personId != source.personId) {
+            let newFamilyId = await model.newFamily();
+            await model.attachParent(newFamilyId, target.personId);
+            await model.attachParent(newFamilyId, source.personId);
+            await updateAll();
         }
-        else {
-            if (activeFamilies.has(source.familyId)) {
-                activeFamilies.delete(source.familyId);
-            }
-            else {
-                activeFamilies.add(source.familyId);
-            }
-            updateGraphics();
+        else if (target.kind == "family") {
+            await model.attachParent(target.familyId, source.personId);
+            await updateAll();
         }
     }
-    if (source.kind != "person") {
-        if (target.kind != "person") {
-            return;
+    else if (source.kind == "person-child") {
+        if (target.kind == "person" && target.personId != source.personId) {
+            let newFamilyId = await model.newFamily();
+            await model.attachParent(newFamilyId, source.personId);
+            await model.attachChild(newFamilyId, target.personId);
+            await updateAll();
         }
-        await functionalEntityConnectionAction(target, source);
-        return;
     }
-    if (target.kind == "person" && target.personId != source.personId) {
-        let newFamilyId = await model.newFamily();
-        await model.attachParent(newFamilyId, target.personId);
-        await model.attachParent(newFamilyId, source.personId);
-        await updateAll();
+    else if (source.kind == "person-parent") {
+        if (target.kind == "person" && target.personId != source.personId) {
+            let newFamilyId = await model.newFamily();
+            await model.attachChild(newFamilyId, source.personId);
+            await model.attachParent(newFamilyId, target.personId);
+            await updateAll();
+        }
+        else if (target.kind == "family") {
+            await model.attachParent(target.familyId, source.personId);
+            await updateAll();
+        }
     }
-    if (target.kind == "family-child") {
-        await model.attachChild(target.familyId, source.personId);
-        await updateAll();
+    else if (source.kind == "family-child") {
+        if (target.kind == "person") {
+            await model.attachChild(source.familyId, target.personId);
+            await updateAll();
+        }
     }
-    if (target.kind == "family-parent") {
-        await model.attachParent(target.familyId, source.personId);
-        await updateAll();
+    else if (source.kind == "family-parent") {
+        if (target.kind == "person") {
+            await model.attachParent(source.familyId, target.personId);
+            await updateAll();
+        }
     }
 }
 function updateSelectionGraphics() {
     function sourcePosition(source) {
-        if (source.kind == "person") {
+        if (source.kind == "person-parent" || source.kind == "person-child" || source.kind == "person-partner") {
             return layout.personsPosition[source.personId];
         }
         return layout.familyPosition[source.familyId];
@@ -448,33 +445,23 @@ export function updateGraphics() {
             .attr("x", () => -familyIconSize.width / 2)
             .attr("y", () => -familyIconSize.height / 2)
             .attr("width", () => familyIconSize.width)
-            .attr("height", () => familyIconSize.height);
-        familyHook.call(d3.drag().on("start", (event, d) => {
-            let kind = "family-parent";
-            if (event.y > layout.familyPosition[d].y + familyIconSize.height / 4) {
-                kind = "family-child";
+            .attr("height", () => familyIconSize.height).on("click", (event, d) => {
+            if (activeFamilies.has(d)) {
+                activeFamilies.delete(d);
+                updateGraphics();
             }
-            selectionLink = { source: { kind: kind, familyId: d }, cursorPosition: { x: event.x, y: event.y } };
-            updateSelectionGraphics();
-        }).on("drag", (event, d) => {
-            selectionLink.cursorPosition = { x: event.x, y: event.y };
-            updateSelectionGraphics();
-        }).on("end", async (event, d) => {
-            const source = selectionLink.source;
-            selectionLink.source = null;
-            let selected = findFunctionalEntityAtPoint(event.x, event.y);
-            if (selected != null) {
-                functionalEntityConnectionAction(source, selected);
+            else {
+                activeFamilies.add(d);
+                updateGraphics();
             }
-            await updateSelectionGraphics();
-        }));
+        });
+        ;
         if (config.debug) {
             familyHook.append("text").text((d) => d);
         }
         let familyDeleteButton = familyHook.append("g")
             .attr("class", () => "family_delete_button")
             .style("opacity", 0).attr("display", "none");
-        ;
         familyDeleteButton.append("image").attr("xlink:href", "icons/heart.svg")
             .attr("x", (d) => familyDeleteButtonOffset(d).dx - buttonSize.width / 2)
             .attr("y", (d) => familyDeleteButtonOffset(d).dy - buttonSize.height / 2)
@@ -505,6 +492,25 @@ export function updateGraphics() {
             .attr("y", (d) => familyAddChildButtonOffset(d).dy - buttonSize.height / 2)
             .attr("width", () => 8)
             .attr("height", () => 8);
+        familyAddChildButton.call(d3.drag().on("start", (event, d) => {
+            let kind = "family-child";
+            let eventAbsPos = [layout.familyPosition[d].x + event.x, layout.familyPosition[d].y + event.y];
+            selectionLink = { source: { kind: kind, familyId: d }, cursorPosition: { x: eventAbsPos[0], y: eventAbsPos[1] } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            let eventAbsPos = [layout.familyPosition[d].x + event.x, layout.familyPosition[d].y + event.y];
+            selectionLink.cursorPosition = { x: eventAbsPos[0], y: eventAbsPos[1] };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            let eventAbsPos = [layout.familyPosition[d].x + event.x, layout.familyPosition[d].y + event.y];
+            const source = selectionLink.source;
+            selectionLink.source = null;
+            let selected = findFunctionalEntityAtPoint(eventAbsPos[0], eventAbsPos[1]);
+            if (selected != null) {
+                functionalEntityConnectionAction(source, selected);
+            }
+            updateSelectionGraphics();
+        }));
         familyAddChildButton.on("click", async (event, d) => {
             let childId = await model.newPerson("Child");
             await model.attachChild(d, childId);
@@ -525,9 +531,28 @@ export function updateGraphics() {
             .attr("y", (d) => familyAddParentButtonOffset(d).dy - buttonSize.height / 2)
             .attr("width", () => 8)
             .attr("height", () => 8);
+        familyAddParentButton.call(d3.drag().on("start", (event, d) => {
+            let kind = "family-parent";
+            let eventAbsPos = [layout.familyPosition[d].x + event.x, layout.familyPosition[d].y + event.y];
+            selectionLink = { source: { kind: kind, familyId: d }, cursorPosition: { x: eventAbsPos[0], y: eventAbsPos[1] } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            let eventAbsPos = [layout.familyPosition[d].x + event.x, layout.familyPosition[d].y + event.y];
+            selectionLink.cursorPosition = { x: eventAbsPos[0], y: eventAbsPos[1] };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            let eventAbsPos = [layout.familyPosition[d].x + event.x, layout.familyPosition[d].y + event.y];
+            const source = selectionLink.source;
+            selectionLink.source = null;
+            let selected = findFunctionalEntityAtPoint(eventAbsPos[0], eventAbsPos[1]);
+            if (selected != null) {
+                functionalEntityConnectionAction(source, selected);
+            }
+            updateSelectionGraphics();
+        }));
         familyAddParentButton.on("click", async (event, d) => {
-            let childId = await model.newPerson("Child");
-            await model.attachChild(d, childId);
+            let childId = await model.newPerson("Parent");
+            await model.attachParent(d, childId);
             await updateAll();
         });
         return familyHook;
@@ -571,21 +596,6 @@ export function updateGraphics() {
         .join(enter => {
         let personHook = enter.append("g")
             .attr("class", () => "person");
-        personHook.call(d3.drag().on("start", (event, d) => {
-            selectionLink = { source: { kind: "person", personId: d }, cursorPosition: { x: event.x, y: event.y } };
-            updateSelectionGraphics();
-        }).on("drag", (event, d) => {
-            selectionLink = { source: { kind: "person", personId: d }, cursorPosition: { x: event.x, y: event.y } };
-            updateSelectionGraphics();
-        }).on("end", async (event, d) => {
-            const source = selectionLink.source;
-            selectionLink.source = null;
-            let selected = findFunctionalEntityAtPoint(event.x, event.y);
-            if (selected != null) {
-                functionalEntityConnectionAction(source, selected);
-            }
-            updateSelectionGraphics();
-        }));
         personHook.attr("transform", (d) => {
             return "translate(" + layout.personsPosition[+d].x + "," + layout.personsPosition[+d].y + ")";
         });
@@ -616,6 +626,15 @@ export function updateGraphics() {
             return '<textarea oninput="updateGraphics()" style="' + styleString + '" rows="2" id="' + personNameBoxTag(d) + '">' +
                 nameText +
                 '</textarea>';
+        }).on("click", (event, d) => {
+            if (activePeople.has(d)) {
+                activePeople.delete(d);
+                updateGraphics();
+            }
+            else {
+                activePeople.add(d);
+                updateGraphics();
+            }
         });
         let personDeleteButton = personHook.append("g")
             .attr("class", () => "person_delete_button")
@@ -644,6 +663,25 @@ export function updateGraphics() {
             await model.attachChild(familyId, d);
             await updateAll();
         });
+        personAddParentButton.call(d3.drag().on("start", (event, d) => {
+            let kind = "person-parent";
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            selectionLink = { source: { kind: kind, personId: d }, cursorPosition: { x: eventAbsPos[0], y: eventAbsPos[1] } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            selectionLink.cursorPosition = { x: eventAbsPos[0], y: eventAbsPos[1] };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            const source = selectionLink.source;
+            selectionLink.source = null;
+            let selected = findFunctionalEntityAtPoint(eventAbsPos[0], eventAbsPos[1]);
+            if (selected != null) {
+                functionalEntityConnectionAction(source, selected);
+            }
+            updateSelectionGraphics();
+        }));
         let personAddPartnerButton = personHook.append("g")
             .attr("class", () => "person_add_partner_button")
             .style("opacity", 0).attr("display", "none");
@@ -652,6 +690,25 @@ export function updateGraphics() {
             .attr("y", () => personAddPartnerButtonOffset.dy - buttonSize.height / 2)
             .attr("width", () => buttonSize.width)
             .attr("height", () => buttonSize.height);
+        personAddPartnerButton.call(d3.drag().on("start", (event, d) => {
+            let kind = "person-partner";
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            selectionLink = { source: { kind: kind, personId: d }, cursorPosition: { x: eventAbsPos[0], y: eventAbsPos[1] } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            selectionLink.cursorPosition = { x: eventAbsPos[0], y: eventAbsPos[1] };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            const source = selectionLink.source;
+            selectionLink.source = null;
+            let selected = findFunctionalEntityAtPoint(eventAbsPos[0], eventAbsPos[1]);
+            if (selected != null) {
+                functionalEntityConnectionAction(source, selected);
+            }
+            updateSelectionGraphics();
+        }));
         personAddPartnerButton.on("click", async (event, d) => {
             let familyId = await model.newFamily();
             let partner = await model.newPerson("Partner");
@@ -676,22 +733,41 @@ export function updateGraphics() {
                 await updateAll();
             }
         });
-        let personAddChildbutton = personHook.append("g")
+        let personAddChildButton = personHook.append("g")
             .attr("class", () => "person_add_child_button")
             .style("opacity", 0).attr("display", "none");
         ;
-        personAddChildbutton.append("image").attr("xlink:href", "icons/child_bottle.svg")
+        personAddChildButton.append("image").attr("xlink:href", "icons/child_bottle.svg")
             .attr("x", (d) => personAddChildButtonOffset.dx - buttonSize.width / 2)
             .attr("y", (d) => personAddChildButtonOffset.dy - buttonSize.height / 2)
             .attr("width", () => buttonSize.width)
             .attr("height", () => buttonSize.height);
-        personAddChildbutton.append("image")
+        personAddChildButton.append("image")
             .attr("xlink:href", "icons/plus.svg")
             .attr("x", (d) => personAddChildButtonOffset.dx - buttonSize.width / 2 - 4)
             .attr("y", (d) => personAddChildButtonOffset.dy - buttonSize.height / 2)
             .attr("width", () => 8)
             .attr("height", () => 8);
-        personAddChildbutton.on("click", async (event, d) => {
+        personAddChildButton.call(d3.drag().on("start", (event, d) => {
+            let kind = "person-child";
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            selectionLink = { source: { kind: kind, personId: d }, cursorPosition: { x: eventAbsPos[0], y: eventAbsPos[1] } };
+            updateSelectionGraphics();
+        }).on("drag", (event, d) => {
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            selectionLink.cursorPosition = { x: eventAbsPos[0], y: eventAbsPos[1] };
+            updateSelectionGraphics();
+        }).on("end", async (event, d) => {
+            let eventAbsPos = [layout.personsPosition[d].x + event.x, layout.personsPosition[d].y + event.y];
+            const source = selectionLink.source;
+            selectionLink.source = null;
+            let selected = findFunctionalEntityAtPoint(eventAbsPos[0], eventAbsPos[1]);
+            if (selected != null) {
+                functionalEntityConnectionAction(source, selected);
+            }
+            updateSelectionGraphics();
+        }));
+        personAddChildButton.on("click", async (event, d) => {
             let familyId = await model.newFamily();
             let childId = await model.newPerson("Child");
             await model.attachParent(familyId, d);
