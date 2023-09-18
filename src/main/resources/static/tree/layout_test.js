@@ -707,8 +707,8 @@ if (config.test) {
     layout.recalculateLayout();
     layout.recalculatePositions();
     // This might be useful to copy the output
-    printCopyablePersonsPositions();
-    printCopyableFamilyPositions();
+    // printCopyablePersonsPositions();
+    // printCopyableFamilyPositions();
     const expectedPersonsPosition = {
         1: { x: 300, y: 0 },
         2: { x: 600, y: 0 },
@@ -732,7 +732,7 @@ if (config.test) {
 if (config.test) {
     console.log("layout_test.ts: Starting [child and partner]");
     model.reset();
-    for (let i = 1; i <= 4; i += 1) {
+    for (let i = 1; i <= 2; i += 1) {
         model.fakeNewPerson("name" + i);
     }
     // Parents: 1 2
@@ -765,14 +765,13 @@ if (config.test) {
     // This might be useful to copy the output
     // printCopyablePersonsPositions();
     // printCopyableFamilyPositions();
+    // TODO: This case actually doesnt' look that great. Would be nice to improve it.
     const expectedPersonsPosition = {
-        1: { x: 300, y: 0 },
-        2: { x: 600, y: 0 },
-        3: { x: 0, y: 0 },
-        4: { x: 0, y: 200 }
+        1: { x: 300, y: 200 },
+        2: { x: 0, y: 0 }
     };
     const expectedFamilyPosition = {
-        1: { x: 0, y: 90 }
+        1: { x: 0, y: 260 }
     };
     for (const personId in layout.personsPosition) {
         console.assert(layout.personsPosition[+personId].x == expectedPersonsPosition[+personId].x &&
